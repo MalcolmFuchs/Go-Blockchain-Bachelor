@@ -1,4 +1,4 @@
-package blockchain
+package utils
 
 import (
 	"crypto/aes"
