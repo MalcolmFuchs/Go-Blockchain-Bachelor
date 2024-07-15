@@ -23,24 +23,24 @@ func (t *Transaction) validateTransaction() bool {
 	}
 
 	record := t.Record
+
 	if record.PersonalData.FirstName == "" || record.PersonalData.LastName == "" ||
-		record.PersonalData.BirthDate.After(time.Now()) || len(record.PersonalData.InsuranceNumber) != 10 {
+		record.PersonalData.BirthDate.After(time.Now()) || len(record.PersonalData.InsuranceNumber) <= 0 {
 		return false
 	}
 
 	return true
 }
 
-func (b Blockchain) IsValid() bool {
+func (b *Blockchain) IsValid() bool {
 	for i := range b.Chain[1:] {
-		prevBlock := b.Chain[i]
-		currBlock := b.Chain[i+1]
+		prevBlock := &b.Chain[i]
+		currBlock := &b.Chain[i+1]
 
 		if currBlock.Hash != currBlock.BlockHash() || currBlock.PrevHash != prevBlock.Hash {
 			return false
 		}
 
-		// Überprüfen Sie die Transaktionen in jedem Block
 		for _, transaction := range currBlock.Transactions {
 			if !transaction.validateTransaction() {
 				return false

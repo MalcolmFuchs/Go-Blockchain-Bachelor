@@ -28,26 +28,31 @@ func (node AuthorityNode) ValidateBlock(newBlock *Block, blockchain *Blockchain)
 		return false
 	}
 
-	// Hier könnten Sie weitere Validierungen hinzufügen, z.B. die Überprüfung der Transaktionen im Block
-
 	return true
 }
-func (node AuthorityNode) CreateBlock(transactions []Transaction, prevBlock *Block, allNodes []AuthorityNode, blockchain *Blockchain) *Block {
-	var newBlock Block
 
-	newBlock.Index = prevBlock.Index + 1
-	newBlock.Timestamp = time.Now()
-	newBlock.Transactions = transactions
-	newBlock.PrevHash = prevBlock.Hash
-	newBlock.Hash = newBlock.BlockHash()
+func NewBlock(transactions []Transaction, prevBlock *Block, allNodes []AuthorityNode, blockchain *Blockchain) *Block {
+	b := new(Block)
+
+	b.Index = prevBlock.Index + 1
+	b.Timestamp = time.Now()
+	b.Transactions = transactions
+	b.PrevHash = prevBlock.Hash
+	b.Hash = b.BlockHash()
+
+	return b
+}
+
+func (node AuthorityNode) CreateBlock(transactions []Transaction, prevBlock *Block, allNodes []AuthorityNode, blockchain *Blockchain) *Block {
+	b := NewBlock(transactions, prevBlock, allNodes, blockchain)
 
 	// Senden des neuen Blocks an alle anderen Authority Nodes zur Validierung
 	for _, otherNode := range allNodes {
-		if otherNode.Id != node.Id && !otherNode.ValidateBlock(&newBlock, blockchain) {
+		if otherNode.Id != node.Id && !otherNode.ValidateBlock(b, blockchain) {
 
 			return nil
 		}
 	}
 
-	return &newBlock
+	return b
 }

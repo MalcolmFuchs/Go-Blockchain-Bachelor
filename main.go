@@ -12,6 +12,7 @@ func main() {
 	nodes := []bc.AuthorityNode{
 		{Id: "Gesundheitsministerium", PublicKey: "key1", PrivateKey: "key1"},
 		{Id: "AOK", PublicKey: "key2", PrivateKey: "key2"},
+		{Id: "TK", PublicKey: "key3", PrivateKey: "key3"},
 	}
 
 	blockchain := bc.CreateBlockchain(nodes)
@@ -43,10 +44,15 @@ func main() {
 		},
 	}
 
-	transaction := bc.NewTransaction("1234567890", patient1)
+	transaction := bc.NewTransaction("1", patient1)
 
 	// Erstellen eines neuen Blocks
-	newBlock := nodes[0].CreateBlock([]bc.Transaction{transaction}, &blockchain.Chain[len(blockchain.Chain)-1], nodes, &blockchain)
+	newBlock := nodes[0].CreateBlock(
+		[]bc.Transaction{transaction},
+		&blockchain.Chain[len(blockchain.Chain)-1],
+		nodes,
+		&blockchain,
+	)
 
 	// Überprüfen ob der neue Block gültig ist
 	if newBlock != nil && nodes[0].ValidateBlock(newBlock, &blockchain) {
@@ -59,6 +65,19 @@ func main() {
 	// Überprüfung ob die Blockchain gültig ist
 	if !blockchain.IsValid() {
 		fmt.Println("Die Blockchain ist ungültig")
+	}
+
+	// Blockchain anzeigen
+	for i, block := range blockchain.Chain {
+		fmt.Printf("Block %d:\n", i)
+		fmt.Printf("\tTimestamp: %s\n", block.Timestamp)
+		fmt.Printf("\tPrev. Hash: %x\n", block.PrevHash)
+		fmt.Printf("\tHash: %x\n", block.Hash)
+		fmt.Println("\tTransactions:")
+		for _, tx := range block.Transactions {
+			fmt.Printf("\t\tPatient ID: %s\n", tx.PatientID)
+			fmt.Printf("\t\tRecord: %+v\n", tx.Record)
+		}
 	}
 
 	// Hash des PatientRecord erzeugen.
