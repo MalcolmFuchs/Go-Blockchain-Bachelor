@@ -1,9 +1,38 @@
-package patient
+package blockchain
 
-import "time"
+import (
+	"crypto/ecdsa"
+	"time"
+)
+
+type AuthorityNode struct {
+	ID         string
+	Name       string
+	PrivateKey *ecdsa.PrivateKey
+	PublicKey  ecdsa.PublicKey
+}
+
+type Block struct {
+	Index       int
+	Timestamp   string
+	PatientData PatientRecord
+	Hash        string
+	PrevHash    string
+	SignatureR  string
+	SignatureS  string
+}
+
+type Blockchain struct {
+	Blocks []Block
+	Nodes  []AuthorityNode
+}
+
+type HealthRecord struct {
+	PatientID string
+	Data      string
+}
 
 type PatientRecord struct {
-	ID             string          `json:"id"`
 	PersonalData   PersonalData    `json:"personalData"`
 	MedicalRecords []MedicalRecord `json:"medicalRecords"`
 }

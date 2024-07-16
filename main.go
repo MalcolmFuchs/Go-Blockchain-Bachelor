@@ -1,86 +1,153 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
-	bc "github.com/MalcolmFuchs/Go-Blockchain-Bachelor/build/blockchain"
-	patient "github.com/MalcolmFuchs/Go-Blockchain-Bachelor/build/patient"
+	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
 )
 
+var blockchainInstance *blockchain.Blockchain
+var passphrase = "mysecretphrase123"
+
+func init() {
+	blockchainInstance = blockchain.CreateBlockchain()
+
+	privateKey1, publicKey1 := GenerateKeyPair()
+	privateKey2, publicKey2 := GenerateKeyPair()
+	nodes := []blockchain.AuthorityNode{
+		{
+			ID:         "1",
+			Name:       "AOK",
+			PrivateKey: privateKey1,
+			PublicKey:  publicKey1,
+		},
+		{
+			ID:         "2",
+			Name:       "TK",
+			PrivateKey: privateKey2,
+			PublicKey:  publicKey2,
+		},
+		{
+			ID:         "3",
+			Name:       "Barmenia",
+			PrivateKey: privateKey2,
+			PublicKey:  publicKey2,
+		},
+	}
+
+	blockchainInstance.Nodes = nodes
+}
+
+func getBlockchain(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
+}
+
+func addMedicalRecordHandler(w http.ResponseWriter, r *http.Request) {
+	var record blockchain.MedicalRecord
+	err := json.NewDecoder(r.Body).Decode(&record)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	insuranceNumber := r.URL.Query().Get("insuranceNumber")
+	if insuranceNumber == "" {
+		http.Error(w, "Missing insurance number", http.StatusBadRequest)
+		return
+	}
+
+	blockchainInstance.AddMedicalRecord(insuranceNumber, record, passphrase)
+	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
+}
+
+func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
+	insuranceNumber := r.URL.Query().Get("insuranceNumber")
+	passphrase := r.URL.Query().Get("passphrase")
+	if insuranceNumber == "" || passphrase == "" {
+		http.Error(w, "Missing insurance number or passphrase", http.StatusBadRequest)
+		return
+	}
+
+	records := blockchainInstance.GetMedicalRecords(insuranceNumber, passphrase)
+	if records == nil {
+		http.Error(w, "No records found or access denied", http.StatusForbidden)
+		return
+	}
+
+	json.NewEncoder(w).Encode(records)
+}
+
 func main() {
-	nodes := []bc.AuthorityNode{
-		{Id: "Gesundheitsministerium", PublicKey: "key1", PrivateKey: "key1"},
-		{Id: "AOK", PublicKey: "key2", PrivateKey: "key2"},
-		{Id: "TK", PublicKey: "key3", PrivateKey: "key3"},
+	// Initial Setup
+	fmt.Println("Blockchain initialized with nodes:")
+	for _, node := range blockchainInstance.Nodes {
+		fmt.Printf("Node Name: %s\n", node.Name)
 	}
 
-	blockchain := bc.CreateBlockchain(nodes)
-
-	// Beispiel für die Erstellung eines PatientRecord.
-	patient1 := patient.PatientRecord{
-		ID: "1234567890",
-		PersonalData: patient.PersonalData{
-			FirstName:       "Max",
-			LastName:        "Mustermann",
-			BirthDate:       time.Date(1998, 9, 23, 0, 0, 0, 0, time.UTC),
-			InsuranceNumber: "AOK123456789",
-		},
-		MedicalRecords: []patient.MedicalRecord{
-			{
-				Date:     time.Date(2024, 7, 11, 12, 46, 55, 0, time.UTC),
-				Type:     "Arztbrief",
-				Provider: "Dr. Med. Mann",
-				Notes:    "Zeigt Symptomatik von Fieber, Husten und Halsschmerzen",
-				Results:  "Patient leidet an Grippe",
-			},
-			{
-				Date:     time.Date(2024, 7, 11, 13, 26, 15, 0, time.UTC),
-				Type:     "Medikationspläne",
-				Provider: "Rosenapotheke",
-				Notes:    "Antibiotikum, 3x täglich einnehmen",
-				Results:  "Amoxihexal",
-			},
-		},
+	// Patient anlegen und erste Daten hinzufügen
+	newRecord1 := blockchain.MedicalRecord{
+		Date:     time.Now(),
+		Type:     "Checkup",
+		Provider: "Dr. Smith",
+		Notes:    "Patient in good health.",
+		Results:  "All tests normal.",
 	}
+	blockchainInstance.AddMedicalRecord("1234567890", newRecord1, passphrase)
 
-	transaction := bc.NewTransaction("1", patient1)
-
-	// Erstellen eines neuen Blocks
-	newBlock := nodes[0].CreateBlock(
-		[]bc.Transaction{transaction},
-		&blockchain.Chain[len(blockchain.Chain)-1],
-		nodes,
-		&blockchain,
-	)
-
-	// Überprüfen ob der neue Block gültig ist
-	if newBlock != nil && nodes[0].ValidateBlock(newBlock, &blockchain) {
-		// Hinzufügen des neuen Blocks zur Blockchain
-		blockchain.AddBlock(*newBlock)
-	} else {
-		fmt.Println("Der neue Block ist ungültig")
+	// Weitere Daten hinzufügen
+	newRecord2 := blockchain.MedicalRecord{
+		Date:     time.Now().AddDate(0, 1, 0), // 1 Monat später
+		Type:     "Blood Test",
+		Provider: "LabCorp",
+		Notes:    "Cholesterol level slightly high.",
+		Results:  "Cholesterol: 210 mg/dL",
 	}
+	blockchainInstance.AddMedicalRecord("1234567890", newRecord2, passphrase)
 
-	// Überprüfung ob die Blockchain gültig ist
-	if !blockchain.IsValid() {
-		fmt.Println("Die Blockchain ist ungültig")
-	}
-
-	// Blockchain anzeigen
-	for i, block := range blockchain.Chain {
-		fmt.Printf("Block %d:\n", i)
-		fmt.Printf("\tTimestamp: %s\n", block.Timestamp)
-		fmt.Printf("\tPrev. Hash: %x\n", block.PrevHash)
-		fmt.Printf("\tHash: %x\n", block.Hash)
-		fmt.Println("\tTransactions:")
-		for _, tx := range block.Transactions {
-			fmt.Printf("\t\tPatient ID: %s\n", tx.PatientID)
-			fmt.Printf("\t\tRecord: %+v\n", tx.Record)
+	// Daten anzeigen mit erlaubtem Zugriff
+	fmt.Println("Retrieving records with correct passphrase:")
+	records := blockchainInstance.GetMedicalRecords("1234567890", passphrase)
+	if records != nil {
+		for _, record := range records {
+			fmt.Printf("Date: %s\n", record.Date)
+			fmt.Printf("Type: %s\n", record.Type)
+			fmt.Printf("Provider: %s\n", record.Provider)
+			fmt.Printf("Notes: %s\n", record.Notes)
+			fmt.Printf("Results: %s\n", record.Results)
+			fmt.Println()
 		}
+	} else {
+		fmt.Println("No records found or access denied")
 	}
 
-	// Hash des PatientRecord erzeugen.
-	// hash := patient1.PatientHash()
-	// println("Hash des PatientRecord: ", hash)
+	// Daten anzeigen mit verweigertem Zugriff
+	fmt.Println("Retrieving records with incorrect passphrase:")
+	records = blockchainInstance.GetMedicalRecords("1234567890", "wrongpassphrase")
+	if records != nil {
+		for _, record := range records {
+			fmt.Printf("Date: %s\n", record.Date)
+			fmt.Printf("Type: %s\n", record.Type)
+			fmt.Printf("Provider: %s\n", record.Provider)
+			fmt.Printf("Notes: %s\n", record.Notes)
+			fmt.Printf("Results: %s\n", record.Results)
+			fmt.Println()
+		}
+	} else {
+		fmt.Println("No records found or access denied")
+	}
+
+	// Starte den HTTP-Server
+}
+
+func GenerateKeyPair() (*ecdsa.PrivateKey, ecdsa.PublicKey) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		fmt.Println("Error generating key pair:", err)
+	}
+	return privateKey, privateKey.PublicKey
 }
