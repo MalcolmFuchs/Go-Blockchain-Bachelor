@@ -96,24 +96,38 @@ func (bc *Blockchain) GetMedicalRecords(insuranceNumber string, passphrase strin
 			var decryptedRecords []MedicalRecord
 			for _, record := range block.PatientData.MedicalRecords {
 				decryptedData := Decrypt(record.Notes, passphrase)
+				if decryptedData == "" {
+					continue
+				}
 				var decryptedRecord EncryptedMedicalRecord
 				err := json.Unmarshal([]byte(decryptedData), &decryptedRecord)
 				if err != nil {
 					fmt.Println("Error unmarshaling decrypted data:", err)
 					continue
 				}
+
+				// Decrypt each field of the decryptedRecord
 				decryptedDate := Decrypt(decryptedRecord.Date, passphrase)
+				if decryptedDate == "" {
+					continue
+				}
 				date, err := time.Parse(time.RFC3339, decryptedDate)
 				if err != nil {
 					fmt.Println("Error parsing decrypted date:", err)
 					continue
 				}
+
+				decryptedType := Decrypt(decryptedRecord.Type, passphrase)
+				decryptedProvider := Decrypt(decryptedRecord.Provider, passphrase)
+				decryptedNotes := Decrypt(decryptedRecord.Notes, passphrase)
+				decryptedResults := Decrypt(decryptedRecord.Results, passphrase)
+
 				decryptedRecords = append(decryptedRecords, MedicalRecord{
 					Date:     date,
-					Type:     decryptedRecord.Type,
-					Provider: decryptedRecord.Provider,
-					Notes:    decryptedRecord.Notes,
-					Results:  decryptedRecord.Results,
+					Type:     decryptedType,
+					Provider: decryptedProvider,
+					Notes:    decryptedNotes,
+					Results:  decryptedResults,
 				})
 			}
 			return decryptedRecords

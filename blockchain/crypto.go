@@ -38,8 +38,6 @@ func Encrypt(data string, passphrase string) string {
 }
 
 func Decrypt(data string, passphrase string) string {
-	fmt.Println(data)
-
 	ciphertext, err := hex.DecodeString(data)
 	if err != nil {
 		fmt.Println("Error decoding hex string:", err)
@@ -62,8 +60,6 @@ func Decrypt(data string, passphrase string) string {
 		fmt.Println("Error decrypting data:", err)
 		return ""
 	}
-
-	fmt.Println(string(plaintext))
 
 	return string(plaintext)
 }
