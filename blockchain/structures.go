@@ -23,9 +23,10 @@ type Block struct {
 }
 
 type Blockchain struct {
-	Blocks   []Block                 `json:"blocks"`
-	Nodes    []AuthorityNode         `json:"nodes"`
-	Patients map[string]PersonalData `json:"patients"`
+	Blocks        []Block                 `json:"blocks"`
+	Nodes         []AuthorityNode         `json:"nodes"`
+	Patients      map[string]PersonalData `json:"patients"`
+	LastNodeIndex int                     `json:"lastNodeIndex"`
 }
 
 type PatientRecord struct {
@@ -51,6 +52,7 @@ type MedicalRecord struct {
 }
 
 type EncryptedMedicalRecord struct {
+	Date     string `json:"date"`
 	Type     string `json:"type"`
 	Provider string `json:"provider"`
 	Notes    string `json:"notes"`

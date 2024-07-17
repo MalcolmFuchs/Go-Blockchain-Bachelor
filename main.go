@@ -17,28 +17,18 @@ var passphrase = "mysecretphrase12mysecretphrase12"
 func init() {
 	blockchainInstance = blockchain.CreateBlockchain()
 
-	privateKey1, publicKey1 := GenerateKeyPair()
-	privateKey2, publicKey2 := GenerateKeyPair()
-	privateKey3, publicKey3 := GenerateKeyPair()
-	nodes := []blockchain.AuthorityNode{
-		{
-			ID:         "1",
-			Name:       "AOK",
-			PrivateKey: privateKey1,
-			PublicKey:  publicKey1,
-		},
-		{
-			ID:         "2",
-			Name:       "TK",
-			PrivateKey: privateKey2,
-			PublicKey:  publicKey2,
-		},
-		{
-			ID:         "3",
-			Name:       "Barmenia",
-			PrivateKey: privateKey3,
-			PublicKey:  publicKey3,
-		},
+	nodeNames := []string{"AOK", "TK", "Barmenia"}
+	nodes := []blockchain.AuthorityNode{}
+
+	for i, name := range nodeNames {
+		privateKey, publicKey := GenerateKeyPair()
+		node := blockchain.AuthorityNode{
+			ID:         fmt.Sprintf("%d", i+1),
+			Name:       name,
+			PrivateKey: privateKey,
+			PublicKey:  publicKey,
+		}
+		nodes = append(nodes, node)
 	}
 
 	blockchainInstance.Nodes = nodes
@@ -115,12 +105,6 @@ func getPatientHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// Initial Setup
-	fmt.Println("Blockchain initialized with nodes:")
-	for _, node := range blockchainInstance.Nodes {
-		fmt.Printf("Node Name: %s\n", node.Name)
-	}
-
 	// Starte den HTTP-Server
 	http.HandleFunc("/blockchain", getBlockchain)
 	http.HandleFunc("/addRecord", addMedicalRecordHandler)
