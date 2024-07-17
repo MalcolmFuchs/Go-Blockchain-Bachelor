@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"math/big"
 )
@@ -27,22 +26,4 @@ func VeryfiySignature(data, rText, sText string, publicKey ecdsa.PublicKey) bool
 	s.SetString(sText, 10)
 
 	return ecdsa.Verify(&publicKey, hash[:], r, s)
-}
-
-func (hr HealthRecord) toJSON() string {
-	jsonData, err := json.Marshal(hr)
-	if err != nil {
-		fmt.Println("Error marshalling to JSON:", err)
-	}
-
-	return string(jsonData)
-}
-
-func fromJSON(data string) HealthRecord {
-	var hr HealthRecord
-	err := json.Unmarshal([]byte(data), &hr)
-	if err != nil {
-		fmt.Println("Error unmarshalling from JSON:", err)
-	}
-	return hr
 }

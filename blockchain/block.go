@@ -15,7 +15,7 @@ func (b *Block) calculateHash() string {
 	return hex.EncodeToString(hashed)
 }
 
-func createGenesisBlock() Block {
+func (bc *Blockchain) CreateGenesisBlock() {
 	genesisBlock := Block{
 		Index:       0,
 		Timestamp:   time.Now().String(),
@@ -25,5 +25,9 @@ func createGenesisBlock() Block {
 	}
 	genesisBlock.Hash = genesisBlock.calculateHash()
 
-	return genesisBlock
+	bc.Blocks = append(bc.Blocks, genesisBlock)
+}
+
+func (bc *Blockchain) addBlock(newBlock Block) {
+	bc.Blocks = append(bc.Blocks, newBlock)
 }

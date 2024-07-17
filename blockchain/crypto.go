@@ -10,6 +10,7 @@ import (
 )
 
 func Encrypt(data string, passphrase string) string {
+
 	block, err := aes.NewCipher([]byte(passphrase))
 	if err != nil {
 		fmt.Println("Error creating cipher:", err)
@@ -27,6 +28,7 @@ func Encrypt(data string, passphrase string) string {
 		return ""
 	}
 	ciphertext := gcm.Seal(nonce, nonce, []byte(data), nil)
+
 	return hex.EncodeToString(ciphertext)
 }
 

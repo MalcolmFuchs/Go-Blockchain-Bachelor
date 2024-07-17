@@ -7,19 +7,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
 )
 
 var blockchainInstance *blockchain.Blockchain
-var passphrase = "mysecretphrase123"
+var passphrase = "mysecretphrase12mysecretphrase12"
 
 func init() {
 	blockchainInstance = blockchain.CreateBlockchain()
 
 	privateKey1, publicKey1 := GenerateKeyPair()
 	privateKey2, publicKey2 := GenerateKeyPair()
+	privateKey3, publicKey3 := GenerateKeyPair()
 	nodes := []blockchain.AuthorityNode{
 		{
 			ID:         "1",
@@ -36,8 +36,8 @@ func init() {
 		{
 			ID:         "3",
 			Name:       "Barmenia",
-			PrivateKey: privateKey2,
-			PublicKey:  publicKey2,
+			PrivateKey: privateKey3,
+			PublicKey:  publicKey3,
 		},
 	}
 
@@ -47,6 +47,9 @@ func init() {
 func getBlockchain(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
 }
+
+// TO-DO:
+// Query muss verschlüsselt werden, InsuranceNumber darf nicht sichtbar sein!!
 
 func addMedicalRecordHandler(w http.ResponseWriter, r *http.Request) {
 	var record blockchain.MedicalRecord
@@ -82,6 +85,35 @@ func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(records)
 }
 
+func addPatientHandler(w http.ResponseWriter, r *http.Request) {
+	var patient blockchain.PersonalData
+	err := json.NewDecoder(r.Body).Decode(&patient)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	blockchainInstance.AddPatient(patient)
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(patient)
+}
+
+func getPatientHandler(w http.ResponseWriter, r *http.Request) {
+	insuranceNumber := r.URL.Query().Get("insuranceNumber")
+	if insuranceNumber == "" {
+		http.Error(w, "Missing insurance number", http.StatusBadRequest)
+		return
+	}
+
+	patient := blockchainInstance.GetPatient(insuranceNumber)
+	if patient == nil {
+		http.Error(w, "Patient not found", http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(patient)
+}
+
 func main() {
 	// Initial Setup
 	fmt.Println("Blockchain initialized with nodes:")
@@ -89,59 +121,13 @@ func main() {
 		fmt.Printf("Node Name: %s\n", node.Name)
 	}
 
-	// Patient anlegen und erste Daten hinzufügen
-	newRecord1 := blockchain.MedicalRecord{
-		Date:     time.Now(),
-		Type:     "Checkup",
-		Provider: "Dr. Smith",
-		Notes:    "Patient in good health.",
-		Results:  "All tests normal.",
-	}
-	blockchainInstance.AddMedicalRecord("1234567890", newRecord1, passphrase)
-
-	// Weitere Daten hinzufügen
-	newRecord2 := blockchain.MedicalRecord{
-		Date:     time.Now().AddDate(0, 1, 0), // 1 Monat später
-		Type:     "Blood Test",
-		Provider: "LabCorp",
-		Notes:    "Cholesterol level slightly high.",
-		Results:  "Cholesterol: 210 mg/dL",
-	}
-	blockchainInstance.AddMedicalRecord("1234567890", newRecord2, passphrase)
-
-	// Daten anzeigen mit erlaubtem Zugriff
-	fmt.Println("Retrieving records with correct passphrase:")
-	records := blockchainInstance.GetMedicalRecords("1234567890", passphrase)
-	if records != nil {
-		for _, record := range records {
-			fmt.Printf("Date: %s\n", record.Date)
-			fmt.Printf("Type: %s\n", record.Type)
-			fmt.Printf("Provider: %s\n", record.Provider)
-			fmt.Printf("Notes: %s\n", record.Notes)
-			fmt.Printf("Results: %s\n", record.Results)
-			fmt.Println()
-		}
-	} else {
-		fmt.Println("No records found or access denied")
-	}
-
-	// Daten anzeigen mit verweigertem Zugriff
-	fmt.Println("Retrieving records with incorrect passphrase:")
-	records = blockchainInstance.GetMedicalRecords("1234567890", "wrongpassphrase")
-	if records != nil {
-		for _, record := range records {
-			fmt.Printf("Date: %s\n", record.Date)
-			fmt.Printf("Type: %s\n", record.Type)
-			fmt.Printf("Provider: %s\n", record.Provider)
-			fmt.Printf("Notes: %s\n", record.Notes)
-			fmt.Printf("Results: %s\n", record.Results)
-			fmt.Println()
-		}
-	} else {
-		fmt.Println("No records found or access denied")
-	}
-
 	// Starte den HTTP-Server
+	http.HandleFunc("/blockchain", getBlockchain)
+	http.HandleFunc("/addRecord", addMedicalRecordHandler)
+	http.HandleFunc("/getRecords", getMedicalRecordsHandler)
+	http.HandleFunc("/addPatient", addPatientHandler)
+	http.HandleFunc("/getPatient", getPatientHandler)
+	http.ListenAndServe(":8080", nil)
 }
 
 func GenerateKeyPair() (*ecdsa.PrivateKey, ecdsa.PublicKey) {

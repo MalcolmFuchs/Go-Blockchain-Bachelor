@@ -6,10 +6,10 @@ import (
 )
 
 type AuthorityNode struct {
-	ID         string
-	Name       string
-	PrivateKey *ecdsa.PrivateKey
-	PublicKey  ecdsa.PublicKey
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	PrivateKey *ecdsa.PrivateKey `json:"-"`
+	PublicKey  ecdsa.PublicKey   `json:"-"`
 }
 
 type Block struct {
@@ -23,13 +23,9 @@ type Block struct {
 }
 
 type Blockchain struct {
-	Blocks []Block
-	Nodes  []AuthorityNode
-}
-
-type HealthRecord struct {
-	PatientID string
-	Data      string
+	Blocks   []Block                 `json:"blocks"`
+	Nodes    []AuthorityNode         `json:"nodes"`
+	Patients map[string]PersonalData `json:"patients"`
 }
 
 type PatientRecord struct {
@@ -52,4 +48,11 @@ type MedicalRecord struct {
 	Provider string    `json:"provider"`
 	Notes    string    `json:"notes"`
 	Results  string    `json:"results"`
+}
+
+type EncryptedMedicalRecord struct {
+	Type     string `json:"type"`
+	Provider string `json:"provider"`
+	Notes    string `json:"notes"`
+	Results  string `json:"results"`
 }
