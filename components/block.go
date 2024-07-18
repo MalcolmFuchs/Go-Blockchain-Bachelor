@@ -1,4 +1,4 @@
-package blockchain
+package components
 
 import (
 	"crypto/sha256"

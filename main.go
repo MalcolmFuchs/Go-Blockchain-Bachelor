@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
+	blockchain "github.com/MalcolmFuchs/Go-Blockchain-Bachelor/components"
 )
 
 var blockchainInstance *blockchain.Blockchain

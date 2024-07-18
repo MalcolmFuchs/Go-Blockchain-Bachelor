@@ -1,4 +1,4 @@
-package blockchain
+package components
 
 func (bc *Blockchain) AddPatient(patient PersonalData) {
 	bc.Patients[patient.ID] = patient
