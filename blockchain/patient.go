@@ -1,13 +1,14 @@
 package blockchain
 
 func (bc *Blockchain) AddPatient(patient PersonalData) {
-	bc.Patients[patient.InsuranceNumber] = patient
+	bc.Patients[patient.ID] = patient
 }
 
-func (bc *Blockchain) GetPatient(insuranceNumber string) *PersonalData {
-	patient, found := bc.Patients[insuranceNumber]
-	if !found {
-		return nil
+func (bc *Blockchain) GetPatient(id string) *PersonalData {
+	for _, patient := range bc.Patients {
+		if patient.ID == id {
+			return &patient
+		}
 	}
-	return &patient
+	return nil
 }

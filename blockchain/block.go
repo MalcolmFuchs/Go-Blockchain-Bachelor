@@ -3,11 +3,13 @@ package blockchain
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"strconv"
 	"time"
 )
 
 func (b *Block) calculateHash() string {
-	record := string(b.Index) + b.Timestamp + b.PatientData.PersonalData.InsuranceNumber + b.PrevHash
+	timestampString := b.Timestamp.Format(time.RFC3339)
+	record := strconv.Itoa(b.Index) + timestampString + b.PatientData.PersonalData.InsuranceNumber + b.PrevHash
 	h := sha256.New()
 	h.Write([]byte(record))
 	hashed := h.Sum(nil)
@@ -18,7 +20,7 @@ func (b *Block) calculateHash() string {
 func (bc *Blockchain) CreateGenesisBlock() {
 	genesisBlock := Block{
 		Index:       0,
-		Timestamp:   time.Now().String(),
+		Timestamp:   time.Now(),
 		PatientData: PatientRecord{},
 		PrevHash:    "",
 		Hash:        "",

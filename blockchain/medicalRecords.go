@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (bc *Blockchain) AddMedicalRecord(insuranceNumber string, newRecord MedicalRecord, passphrase string) {
+func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passphrase string) {
 	var patientFound bool
 
 	node, err := bc.GetNextNode()
@@ -14,11 +14,9 @@ func (bc *Blockchain) AddMedicalRecord(insuranceNumber string, newRecord Medical
 		fmt.Println("Error getting next node:", err)
 		return
 	}
-
 	fmt.Println("Block added by " + node.Name)
 
-	encryptedDate := Encrypt(CustomDateToString(newRecord.Date), passphrase)
-
+	encryptedDate := Encrypt(newRecord.Date.Format(time.RFC3339), passphrase)
 	encRecord := EncryptedMedicalRecord{
 		Date:     encryptedDate,
 		Type:     Encrypt(newRecord.Type, passphrase),
@@ -35,7 +33,7 @@ func (bc *Blockchain) AddMedicalRecord(insuranceNumber string, newRecord Medical
 
 	for i, block := range bc.Blocks {
 
-		if block.PatientData.PersonalData.InsuranceNumber == insuranceNumber {
+		if block.PatientData.PersonalData.ID == id {
 			bc.Blocks[i].PatientData.MedicalRecords = append(bc.Blocks[i].PatientData.MedicalRecords, MedicalRecord{
 				Date:     newRecord.Date,
 				Type:     "",
@@ -53,13 +51,28 @@ func (bc *Blockchain) AddMedicalRecord(insuranceNumber string, newRecord Medical
 		}
 	}
 	if !patientFound {
-		patientData, exits := bc.Patients[insuranceNumber]
+		patientData, exits := bc.Patients[id]
 		if !exits {
 			fmt.Println("Patient not found")
 			return
 		}
+
+		encryptedBirthDate := Encrypt(patientData.BirthDate.Format(time.RFC3339), passphrase)
+		encryptedPatientData := EncryptedPersonalData{
+			FirstName:       Encrypt(patientData.FirstName, passphrase),
+			LastName:        Encrypt(patientData.LastName, passphrase),
+			BirthDate:       encryptedBirthDate,
+			InsuranceNumber: Encrypt(patientData.InsuranceNumber, passphrase),
+		}
+
 		newPatientRecord := PatientRecord{
-			PersonalData: patientData,
+			PersonalData: PersonalData{
+				FirstName:       encryptedPatientData.FirstName,
+				LastName:        encryptedPatientData.LastName,
+				BirthDate:       patientData.BirthDate,
+				InsuranceNumber: encryptedPatientData.InsuranceNumber,
+				ID:              patientData.ID,
+			},
 			MedicalRecords: []MedicalRecord{{
 				Date:     newRecord.Date,
 				Type:     "",
@@ -70,7 +83,7 @@ func (bc *Blockchain) AddMedicalRecord(insuranceNumber string, newRecord Medical
 		}
 		newBlock := Block{
 			Index:       len(bc.Blocks),
-			Timestamp:   time.Now().String(),
+			Timestamp:   time.Now(),
 			PatientData: newPatientRecord,
 			PrevHash:    "",
 			Hash:        "",
@@ -90,15 +103,21 @@ func (bc *Blockchain) AddMedicalRecord(insuranceNumber string, newRecord Medical
 	}
 }
 
-func (bc *Blockchain) GetMedicalRecords(insuranceNumber string, passphrase string) []MedicalRecord {
+func (bc *Blockchain) GetMedicalRecords(id string, passphrase string) []MedicalRecord {
+
+	fmt.Println("GMR " + id)
+
 	for _, block := range bc.Blocks {
-		if block.PatientData.PersonalData.InsuranceNumber == insuranceNumber {
+		fmt.Println(block.PatientData.PersonalData.ID)
+		if block.PatientData.PersonalData.ID == id {
+
 			var decryptedRecords []MedicalRecord
 			for _, record := range block.PatientData.MedicalRecords {
 				decryptedData := Decrypt(record.Notes, passphrase)
 				if decryptedData == "" {
 					continue
 				}
+
 				var decryptedRecord EncryptedMedicalRecord
 				err := json.Unmarshal([]byte(decryptedData), &decryptedRecord)
 				if err != nil {
@@ -106,28 +125,19 @@ func (bc *Blockchain) GetMedicalRecords(insuranceNumber string, passphrase strin
 					continue
 				}
 
-				// Decrypt each field of the decryptedRecord
 				decryptedDate := Decrypt(decryptedRecord.Date, passphrase)
-				if decryptedDate == "" {
-					continue
-				}
 				date, err := time.Parse(time.RFC3339, decryptedDate)
 				if err != nil {
 					fmt.Println("Error parsing decrypted date:", err)
 					continue
 				}
 
-				decryptedType := Decrypt(decryptedRecord.Type, passphrase)
-				decryptedProvider := Decrypt(decryptedRecord.Provider, passphrase)
-				decryptedNotes := Decrypt(decryptedRecord.Notes, passphrase)
-				decryptedResults := Decrypt(decryptedRecord.Results, passphrase)
-
 				decryptedRecords = append(decryptedRecords, MedicalRecord{
 					Date:     date,
-					Type:     decryptedType,
-					Provider: decryptedProvider,
-					Notes:    decryptedNotes,
-					Results:  decryptedResults,
+					Type:     Decrypt(decryptedRecord.Type, passphrase),
+					Provider: Decrypt(decryptedRecord.Provider, passphrase),
+					Notes:    Decrypt(decryptedRecord.Notes, passphrase),
+					Results:  Decrypt(decryptedRecord.Results, passphrase),
 				})
 			}
 			return decryptedRecords

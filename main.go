@@ -1,9 +1,6 @@
 package main
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,7 +18,7 @@ func init() {
 	nodes := []blockchain.AuthorityNode{}
 
 	for i, name := range nodeNames {
-		privateKey, publicKey := GenerateKeyPair()
+		privateKey, publicKey := blockchain.GenerateKeyPair()
 		node := blockchain.AuthorityNode{
 			ID:         fmt.Sprintf("%d", i+1),
 			Name:       name,
@@ -34,47 +31,6 @@ func init() {
 	blockchainInstance.Nodes = nodes
 }
 
-func getBlockchain(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
-}
-
-// TO-DO:
-// Query muss verschlüsselt werden, InsuranceNumber darf nicht sichtbar sein!!
-
-func addMedicalRecordHandler(w http.ResponseWriter, r *http.Request) {
-	var record blockchain.MedicalRecord
-	err := json.NewDecoder(r.Body).Decode(&record)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	insuranceNumber := r.URL.Query().Get("insuranceNumber")
-	if insuranceNumber == "" {
-		http.Error(w, "Missing insurance number", http.StatusBadRequest)
-		return
-	}
-
-	blockchainInstance.AddMedicalRecord(insuranceNumber, record, passphrase)
-	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
-}
-
-func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
-	insuranceNumber := r.URL.Query().Get("insuranceNumber")
-	passphrase := r.URL.Query().Get("passphrase")
-	if insuranceNumber == "" || passphrase == "" {
-		http.Error(w, "Missing insurance number or passphrase", http.StatusBadRequest)
-		return
-	}
-
-	records := blockchainInstance.GetMedicalRecords(insuranceNumber, passphrase)
-	if records == nil {
-		http.Error(w, "No records found or access denied", http.StatusForbidden)
-		return
-	}
-
-	json.NewEncoder(w).Encode(records)
-}
-
 func addPatientHandler(w http.ResponseWriter, r *http.Request) {
 	var patient blockchain.PersonalData
 	err := json.NewDecoder(r.Body).Decode(&patient)
@@ -83,25 +39,66 @@ func addPatientHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id := blockchain.HashInsuranceNumber(patient.InsuranceNumber)
+	patient.ID = id
+
 	blockchainInstance.AddPatient(patient)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(patient)
 }
 
 func getPatientHandler(w http.ResponseWriter, r *http.Request) {
-	insuranceNumber := r.URL.Query().Get("insuranceNumber")
-	if insuranceNumber == "" {
-		http.Error(w, "Missing insurance number", http.StatusBadRequest)
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "Missing hashed insurance number", http.StatusBadRequest)
 		return
 	}
 
-	patient := blockchainInstance.GetPatient(insuranceNumber)
+	patient := blockchainInstance.GetPatient(id)
 	if patient == nil {
 		http.Error(w, "Patient not found", http.StatusNotFound)
 		return
 	}
 
 	json.NewEncoder(w).Encode(patient)
+}
+
+func getBlockchain(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
+}
+
+func addMedicalRecordHandler(w http.ResponseWriter, r *http.Request) {
+	var record blockchain.MedicalRecord
+	err := json.NewDecoder(r.Body).Decode(&record)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "Missing id", http.StatusBadRequest)
+		return
+	}
+
+	blockchainInstance.AddMedicalRecord(id, record, passphrase)
+	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
+}
+
+func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	passphrase := r.URL.Query().Get("passphrase")
+	if id == "" || passphrase == "" {
+		http.Error(w, "Missing id or passphrase", http.StatusBadRequest)
+		return
+	}
+
+	records := blockchainInstance.GetMedicalRecords(id, passphrase)
+	if records == nil {
+		http.Error(w, "No records found or access denied", http.StatusForbidden)
+		return
+	}
+
+	json.NewEncoder(w).Encode(records)
 }
 
 func main() {
@@ -112,12 +109,4 @@ func main() {
 	http.HandleFunc("/addPatient", addPatientHandler)
 	http.HandleFunc("/getPatient", getPatientHandler)
 	http.ListenAndServe(":8080", nil)
-}
-
-func GenerateKeyPair() (*ecdsa.PrivateKey, ecdsa.PublicKey) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		fmt.Println("Error generating key pair:", err)
-	}
-	return privateKey, privateKey.PublicKey
 }

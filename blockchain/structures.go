@@ -14,7 +14,7 @@ type AuthorityNode struct {
 
 type Block struct {
 	Index       int
-	Timestamp   string
+	Timestamp   time.Time
 	PatientData PatientRecord
 	Hash        string
 	PrevHash    string
@@ -36,10 +36,18 @@ type PatientRecord struct {
 
 // Persönliche Informationen eines Patienten.
 type PersonalData struct {
+	ID              string    `json:"id"`
 	FirstName       string    `json:"firstName"`
 	LastName        string    `json:"lastName"`
 	BirthDate       time.Time `json:"birthDate"`
 	InsuranceNumber string    `json:"insuranceNumber"`
+}
+
+type EncryptedPersonalData struct {
+	FirstName       string `json:"firstName"`
+	LastName        string `json:"lastName"`
+	BirthDate       string `json:"birthDate"`
+	InsuranceNumber string `json:"insuranceNumber"`
 }
 
 // Definiert die Struktur eines medizinischen Eintrags.

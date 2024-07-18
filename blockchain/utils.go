@@ -2,11 +2,28 @@ package blockchain
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 )
+
+func HashInsuranceNumber(insuranceNumber string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(insuranceNumber))
+	hashed := hasher.Sum(nil)
+	return hex.EncodeToString(hashed)
+}
+
+func GenerateKeyPair() (*ecdsa.PrivateKey, ecdsa.PublicKey) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		fmt.Println("Error generating key pair:", err)
+	}
+	return privateKey, privateKey.PublicKey
+}
 
 func SignData(data string, privateKey *ecdsa.PrivateKey) (string, string) {
 	hash := sha256.Sum256([]byte(data))

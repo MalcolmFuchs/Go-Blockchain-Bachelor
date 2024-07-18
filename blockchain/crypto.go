@@ -7,12 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"time"
 )
-
-func CustomDateToString(date time.Time) string {
-	return date.Format(time.RFC3339)
-}
 
 func Encrypt(data string, passphrase string) string {
 
@@ -27,8 +22,7 @@ func Encrypt(data string, passphrase string) string {
 		return ""
 	}
 	nonce := make([]byte, gcm.NonceSize())
-	_, err = io.ReadFull(rand.Reader, nonce)
-	if err != nil {
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
 		fmt.Println("Error reading random data:", err)
 		return ""
 	}
@@ -54,6 +48,11 @@ func Decrypt(data string, passphrase string) string {
 		return ""
 	}
 	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		fmt.Println("Ciphertext too short")
+		return ""
+	}
+
 	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
