@@ -105,10 +105,7 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 
 func (bc *Blockchain) GetMedicalRecords(id string, passphrase string) []MedicalRecord {
 
-	fmt.Println("GMR " + id)
-
 	for _, block := range bc.Blocks {
-		fmt.Println(block.PatientData.PersonalData.ID)
 		if block.PatientData.PersonalData.ID == id {
 
 			var decryptedRecords []MedicalRecord

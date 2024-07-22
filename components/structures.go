@@ -2,6 +2,7 @@ package components
 
 import (
 	"crypto/ecdsa"
+	"sync"
 	"time"
 )
 
@@ -23,10 +24,13 @@ type Block struct {
 }
 
 type Blockchain struct {
-	Blocks        []Block                 `json:"blocks"`
-	Nodes         []AuthorityNode         `json:"nodes"`
-	Patients      map[string]PersonalData `json:"patients"`
-	LastNodeIndex int                     `json:"lastNodeIndex"`
+	Blocks          []Block                 `json:"blocks"`
+	Nodes           []AuthorityNode         `json:"nodes"`
+	Patients        map[string]PersonalData `json:"patients"`
+	TransactionPool []PatientRecord         `json:"transactionPool"`
+	LastNodeIndex   int                     `json:"lastNodeIndex"`
+	mu              sync.Mutex
+	poolMu          sync.Mutex
 }
 
 type PatientRecord struct {

@@ -33,3 +33,18 @@ func (bc *Blockchain) CreateGenesisBlock() {
 func (bc *Blockchain) addBlock(newBlock Block) {
 	bc.Blocks = append(bc.Blocks, newBlock)
 }
+
+func (bc *Blockchain) createBlock(transaction PatientRecord) Block {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	previousBlock := bc.Blocks[len(bc.Blocks)-1]
+	newBlock := Block{
+		Index:       len(bc.Blocks),
+		Timestamp:   time.Now(),
+		PatientData: transaction,
+		PrevHash:    previousBlock.Hash,
+	}
+	newBlock.Hash = newBlock.calculateHash()
+	return newBlock
+}

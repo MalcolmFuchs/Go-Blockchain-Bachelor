@@ -13,6 +13,7 @@ var passphrase = "mysecretphrase12mysecretphrase12"
 
 func init() {
 	blockchainInstance = blockchain.CreateBlockchain()
+	go blockchainInstance.ProcessTransactions()
 
 	nodeNames := []string{"AOK", "TK", "Barmenia"}
 	nodes := []blockchain.AuthorityNode{}
@@ -31,6 +32,8 @@ func init() {
 	blockchainInstance.Nodes = nodes
 }
 
+// Handler:
+
 func addPatientHandler(w http.ResponseWriter, r *http.Request) {
 	var patient blockchain.PersonalData
 	err := json.NewDecoder(r.Body).Decode(&patient)
@@ -42,7 +45,8 @@ func addPatientHandler(w http.ResponseWriter, r *http.Request) {
 	id := blockchain.HashInsuranceNumber(patient.InsuranceNumber)
 	patient.ID = id
 
-	blockchainInstance.AddPatient(patient)
+	transaction := blockchain.PatientRecord{PersonalData: patient}
+	blockchainInstance.AddTransactionToPool(transaction)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(patient)
 }
@@ -61,10 +65,6 @@ func getPatientHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(patient)
-}
-
-func getBlockchain(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
 }
 
 func addMedicalRecordHandler(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +99,10 @@ func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(records)
+}
+
+func getBlockchain(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
 }
 
 func main() {
