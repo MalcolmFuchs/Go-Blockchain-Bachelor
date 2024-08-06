@@ -37,7 +37,8 @@ func (bc *Blockchain) ValidateTransaction(transaction PatientRecord, r, s *big.I
 	return nil
 }
 
-func (bc *Blockchain) ProcessTransactions() {
+func (bc *Blockchain) ProcessTransactions(passphrase string) {
+
 	for {
 		fmt.Println("Waiting for a new transaction signal...")
 		<-bc.TxChan
@@ -73,11 +74,9 @@ func (bc *Blockchain) ProcessTransactions() {
 			continue
 		}
 
-		newBlock := bc.createBlock(transaction)
-
-		bc.Mu.Lock()
-		bc.Blocks = append(bc.Blocks, newBlock)
-		bc.Mu.Unlock()
+		for _, newRecord := range transaction.MedicalRecords {
+			bc.AddMedicalRecord(transaction.PersonalData.ID, newRecord, passphrase)
+		}
 
 		select {
 		case bc.TxChan <- struct{}{}:

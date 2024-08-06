@@ -18,7 +18,7 @@ var passphrase = "mysecretphrase12mysecretphrase12"
 
 func init() {
 	blockchainInstance = blockchain.CreateBlockchain()
-	go blockchainInstance.ProcessTransactions()
+	go blockchainInstance.ProcessTransactions(passphrase)
 
 	nodeNames := []string{"AOK", "TK", "Barmenia"}
 	nodes := []blockchain.AuthorityNode{}
@@ -164,11 +164,15 @@ func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	records := blockchainInstance.GetMedicalRecords(id, passphrase)
-	if records == nil {
-		http.Error(w, "No records found or access denied", http.StatusForbidden)
+	records, err := blockchainInstance.GetMedicalRecords(id, passphrase)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// if records == nil {
+	// 	http.Error(w, "No records found or access denied", http.StatusForbidden)
+	// 	return
+	// }
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(records)

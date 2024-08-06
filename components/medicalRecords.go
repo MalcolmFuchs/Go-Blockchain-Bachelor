@@ -32,21 +32,20 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 	}
 	encryptedRecord := Encrypt(string(recordBytes), passphrase)
 
-	// Suchen Sie den Block, der den Patienten mit der ID enthält
-	for _, block := range bc.Blocks {
+	for i, block := range bc.Blocks {
 		if block.PatientData.PersonalData.ID == id {
-			block.PatientData.MedicalRecords = append(block.PatientData.MedicalRecords, MedicalRecord{
+			bc.Blocks[i].PatientData.MedicalRecords = append(bc.Blocks[i].PatientData.MedicalRecords, MedicalRecord{
 				Date:     newRecord.Date,
 				Type:     "", // Wenn Typen leer bleiben, ersetzen Sie dies nach Bedarf
 				Provider: "",
 				Notes:    encryptedRecord,
 				Results:  "",
 			})
-			block.Hash = block.calculateHash()
-			dataToSign := fmt.Sprintf("%d%s%s%s", block.Index, block.Timestamp, block.PatientData.PersonalData.InsuranceNumber, block.PrevHash)
+			bc.Blocks[i].Hash = bc.Blocks[i].calculateHash()
+			dataToSign := fmt.Sprintf("%d%s%s%s", bc.Blocks[i].Index, bc.Blocks[i].Timestamp, bc.Blocks[i].PatientData.PersonalData.InsuranceNumber, bc.Blocks[i].PrevHash)
 			r, s := SignData(dataToSign, node.PrivateKey)
-			block.SignatureR = r
-			block.SignatureS = s
+			bc.Blocks[i].SignatureR = r
+			bc.Blocks[i].SignatureS = s
 			patientFound = true
 			break
 		}
@@ -66,6 +65,9 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 			BirthDate:       encryptedBirthDate,
 			InsuranceNumber: Encrypt(patientData.InsuranceNumber, passphrase),
 		}
+
+		fmt.Println("encryptedPatientData")
+		fmt.Println(encryptedPatientData)
 
 		newPatientRecord := PatientRecord{
 			PersonalData: PersonalData{
@@ -102,50 +104,57 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 		newBlock.SignatureR = r
 		newBlock.SignatureS = s
 
-		if VerifySignature(dataToSign, newBlock.SignatureR, newBlock.SignatureS, node.PublicKey) {
-			bc.validateAndAddBlock(newBlock, node)
-		}
+		bc.validateAndAddBlock(newBlock, node)
 	}
 }
 
-func (bc *Blockchain) GetMedicalRecords(id string, passphrase string) []MedicalRecord {
+func (bc *Blockchain) GetMedicalRecords(id string, passphrase string) ([]MedicalRecord, error) {
+	var medicalRecords []MedicalRecord
+
 	bc.Mu.Lock()
 	defer bc.Mu.Unlock()
 
 	for _, block := range bc.Blocks {
 		if block.PatientData.PersonalData.ID == id {
+			fmt.Printf("Found block with patient data: %+v\n", block.PatientData)
 
-			var decryptedRecords []MedicalRecord
-			for _, record := range block.PatientData.MedicalRecords {
-				decryptedData := Decrypt(record.Notes, passphrase)
-				if decryptedData == "" {
-					continue
-				}
+			for _, encRecord := range block.PatientData.MedicalRecords {
 
+				fmt.Println("encRecord")
+				fmt.Println(encRecord.Notes)
+
+				decryptedNotes := Decrypt(encRecord.Notes, passphrase)
 				var decryptedRecord EncryptedMedicalRecord
-				err := json.Unmarshal([]byte(decryptedData), &decryptedRecord)
+				err := json.Unmarshal([]byte(decryptedNotes), &decryptedRecord)
 				if err != nil {
-					fmt.Println("Error unmarshaling decrypted data:", err)
-					continue
+					return nil, err
 				}
 
-				decryptedDate := Decrypt(decryptedRecord.Date, passphrase)
-				date, err := time.Parse(time.RFC3339, decryptedDate)
+				decryptedRecord.Date = Decrypt(decryptedRecord.Date, passphrase)
+				decryptedRecord.Type = Decrypt(decryptedRecord.Type, passphrase)
+				decryptedRecord.Provider = Decrypt(decryptedRecord.Provider, passphrase)
+				decryptedRecord.Notes = Decrypt(decryptedRecord.Notes, passphrase)
+				decryptedRecord.Results = Decrypt(decryptedRecord.Results, passphrase)
+
+				recordDate, err := time.Parse(time.RFC3339, decryptedRecord.Date)
 				if err != nil {
-					fmt.Println("Error parsing decrypted date:", err)
-					continue
+					return nil, err
 				}
 
-				decryptedRecords = append(decryptedRecords, MedicalRecord{
-					Date:     date,
-					Type:     Decrypt(decryptedRecord.Type, passphrase),
-					Provider: Decrypt(decryptedRecord.Provider, passphrase),
-					Notes:    Decrypt(decryptedRecord.Notes, passphrase),
-					Results:  Decrypt(decryptedRecord.Results, passphrase),
+				medicalRecords = append(medicalRecords, MedicalRecord{
+					Date:     recordDate,
+					Type:     decryptedRecord.Type,
+					Provider: decryptedRecord.Provider,
+					Notes:    decryptedRecord.Notes,
+					Results:  decryptedRecord.Results,
 				})
 			}
-			return decryptedRecords
 		}
 	}
-	return nil
+
+	if len(medicalRecords) == 0 {
+		return nil, fmt.Errorf("no records found or access denied")
+	}
+
+	return medicalRecords, nil
 }
