@@ -8,7 +8,27 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strconv"
+	"time"
 )
+
+func (b *Block) calculateHash() string {
+	timestampString := b.Timestamp.Format(time.RFC3339)
+	record := strconv.Itoa(b.Index) + timestampString + b.PatientData.PersonalData.InsuranceNumber + b.PrevHash
+	h := sha256.New()
+	h.Write([]byte(record))
+	hashed := h.Sum(nil)
+
+	return hex.EncodeToString(hashed)
+}
+
+func (bc *Blockchain) calculatBcHash(block Block) string {
+	record := fmt.Sprintf("%d%s%s", block.Index, block.Timestamp, block.PrevHash)
+	h := sha256.New()
+	h.Write([]byte(record))
+	hashed := h.Sum(nil)
+	return hex.EncodeToString(hashed)
+}
 
 func HashInsuranceNumber(insuranceNumber string) string {
 	hasher := sha256.New()
@@ -35,7 +55,7 @@ func SignData(data string, privateKey *ecdsa.PrivateKey) (string, string) {
 	return r.String(), s.String()
 }
 
-func VeryfiySignature(data, rText, sText string, publicKey ecdsa.PublicKey) bool {
+func VerifySignature(data, rText, sText string, publicKey ecdsa.PublicKey) bool {
 	hash := sha256.Sum256([]byte(data))
 	r := new(big.Int)
 	s := new(big.Int)

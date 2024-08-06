@@ -1,10 +1,15 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/components"
 	blockchain "github.com/MalcolmFuchs/Go-Blockchain-Bachelor/components"
 )
 
@@ -32,21 +37,37 @@ func init() {
 	blockchainInstance.Nodes = nodes
 }
 
-// Handler:
-
 func addPatientHandler(w http.ResponseWriter, r *http.Request) {
-	var patient blockchain.PersonalData
+	var patient components.PersonalData
 	err := json.NewDecoder(r.Body).Decode(&patient)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	id := blockchain.HashInsuranceNumber(patient.InsuranceNumber)
-	patient.ID = id
+	patient.ID = fmt.Sprintf("%x", sha256.Sum256([]byte(patient.InsuranceNumber)))
 
-	transaction := blockchain.PatientRecord{PersonalData: patient}
-	blockchainInstance.AddTransactionToPool(transaction)
+	hash := sha256.Sum256([]byte(patient.ID))
+	rSign, sSign, err := ecdsa.Sign(rand.Reader, blockchainInstance.Nodes[0].PrivateKey, hash[:])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	transaction := components.PatientRecord{
+		PersonalData: patient,
+	}
+
+	err = blockchainInstance.AddTransactionToPool(transaction, rSign, sSign, blockchainInstance.Nodes[0].PublicKey)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	blockchainInstance.Mu.Lock()
+	blockchainInstance.Patients[patient.ID] = patient
+	blockchainInstance.Mu.Unlock()
+
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(patient)
 }
@@ -54,12 +75,15 @@ func addPatientHandler(w http.ResponseWriter, r *http.Request) {
 func getPatientHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		http.Error(w, "Missing hashed insurance number", http.StatusBadRequest)
+		http.Error(w, "Missing id", http.StatusBadRequest)
 		return
 	}
 
-	patient := blockchainInstance.GetPatient(id)
-	if patient == nil {
+	blockchainInstance.Mu.Lock()
+	defer blockchainInstance.Mu.Unlock()
+
+	patient, exists := blockchainInstance.Patients[id]
+	if !exists {
 		http.Error(w, "Patient not found", http.StatusNotFound)
 		return
 	}
@@ -67,20 +91,68 @@ func getPatientHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(patient)
 }
 
+func getBlockchain(w http.ResponseWriter, r *http.Request) {
+	blockchainInstance.Mu.Lock()
+	defer blockchainInstance.Mu.Unlock()
+
+	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
+}
+
 func addMedicalRecordHandler(w http.ResponseWriter, r *http.Request) {
-	var record blockchain.MedicalRecord
+	var record components.MedicalRecord
 	err := json.NewDecoder(r.Body).Decode(&record)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	id := r.URL.Query().Get("id")
 	if id == "" {
 		http.Error(w, "Missing id", http.StatusBadRequest)
 		return
 	}
 
-	blockchainInstance.AddMedicalRecord(id, record, passphrase)
+	blockchainInstance.Mu.Lock()
+	defer blockchainInstance.Mu.Unlock()
+
+	patient, exists := blockchainInstance.Patients[id]
+	if !exists {
+		http.Error(w, "Patient not found", http.StatusNotFound)
+		return
+	}
+
+	var patientRecord components.PatientRecord
+	for i, record := range blockchainInstance.TransactionPool {
+		if record.PersonalData.ID == id {
+			patientRecord = blockchainInstance.TransactionPool[i]
+			blockchainInstance.TransactionPool = append(blockchainInstance.TransactionPool[:i], blockchainInstance.TransactionPool[i+1:]...)
+			break
+		}
+	}
+
+	if patientRecord.PersonalData.ID == "" {
+		patientRecord = components.PatientRecord{
+			PersonalData: patient,
+		}
+	}
+
+	record.Date = time.Now()
+	patientRecord.MedicalRecords = append(patientRecord.MedicalRecords, record)
+
+	hash := sha256.Sum256([]byte(patient.ID))
+	rSign, sSign, err := ecdsa.Sign(rand.Reader, blockchainInstance.Nodes[0].PrivateKey, hash[:])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = blockchainInstance.AddTransactionToPool(patientRecord, rSign, sSign, blockchainInstance.Nodes[0].PublicKey)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
 }
 
@@ -88,7 +160,7 @@ func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	passphrase := r.URL.Query().Get("passphrase")
 	if id == "" || passphrase == "" {
-		http.Error(w, "Missing id or passphrase", http.StatusBadRequest)
+		http.Error(w, "Missing ID or passphrase", http.StatusBadRequest)
 		return
 	}
 
@@ -98,19 +170,17 @@ func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(records)
 }
 
-func getBlockchain(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(blockchainInstance.Blocks)
-}
-
 func main() {
-	// Starte den HTTP-Server
 	http.HandleFunc("/blockchain", getBlockchain)
 	http.HandleFunc("/addRecord", addMedicalRecordHandler)
 	http.HandleFunc("/getRecords", getMedicalRecordsHandler)
 	http.HandleFunc("/addPatient", addPatientHandler)
 	http.HandleFunc("/getPatient", getPatientHandler)
+
+	fmt.Println("Server listening on port :8080")
 	http.ListenAndServe(":8080", nil)
 }

@@ -29,8 +29,9 @@ type Blockchain struct {
 	Patients        map[string]PersonalData `json:"patients"`
 	TransactionPool []PatientRecord         `json:"transactionPool"`
 	LastNodeIndex   int                     `json:"lastNodeIndex"`
-	mu              sync.Mutex
-	poolMu          sync.Mutex
+	Mu              sync.Mutex
+	PoolMu          sync.Mutex
+	TxChan          chan struct{}
 }
 
 type PatientRecord struct {

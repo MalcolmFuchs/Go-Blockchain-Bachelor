@@ -17,6 +17,7 @@ func CreateBlockchain() *Blockchain {
 		Nodes:         []AuthorityNode{},
 		Patients:      make(map[string]PersonalData),
 		LastNodeIndex: -1,
+		TxChan:        make(chan struct{}),
 	}
 	blockchain.CreateGenesisBlock()
 
@@ -38,7 +39,7 @@ func (bc *Blockchain) validateAndAddBlock(newBlock Block, node *AuthorityNode) {
 	newBlock.SignatureR = r
 	newBlock.SignatureS = s
 
-	if VeryfiySignature(dataToSign, newBlock.SignatureR, newBlock.SignatureS, node.PublicKey) {
+	if VerifySignature(dataToSign, newBlock.SignatureR, newBlock.SignatureS, node.PublicKey) {
 		bc.addBlock(newBlock)
 	} else {
 		fmt.Println("Invalid signature. Block not added.")

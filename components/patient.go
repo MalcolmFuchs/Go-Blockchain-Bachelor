@@ -3,8 +3,8 @@ package components
 import "fmt"
 
 func (bc *Blockchain) AddPatient(patient PersonalData) {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
+	bc.Mu.Lock()
+	defer bc.Mu.Unlock()
 	bc.Patients[patient.ID] = patient
 }
 

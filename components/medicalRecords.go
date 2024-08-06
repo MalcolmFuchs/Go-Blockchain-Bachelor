@@ -14,6 +14,7 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 		fmt.Println("Error getting next node:", err)
 		return
 	}
+
 	fmt.Println("Block added by " + node.Name)
 
 	encryptedDate := Encrypt(newRecord.Date.Format(time.RFC3339), passphrase)
@@ -31,28 +32,29 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 	}
 	encryptedRecord := Encrypt(string(recordBytes), passphrase)
 
-	for i, block := range bc.Blocks {
-
+	// Suchen Sie den Block, der den Patienten mit der ID enthält
+	for _, block := range bc.Blocks {
 		if block.PatientData.PersonalData.ID == id {
-			bc.Blocks[i].PatientData.MedicalRecords = append(bc.Blocks[i].PatientData.MedicalRecords, MedicalRecord{
+			block.PatientData.MedicalRecords = append(block.PatientData.MedicalRecords, MedicalRecord{
 				Date:     newRecord.Date,
-				Type:     "",
+				Type:     "", // Wenn Typen leer bleiben, ersetzen Sie dies nach Bedarf
 				Provider: "",
 				Notes:    encryptedRecord,
 				Results:  "",
 			})
-			bc.Blocks[i].Hash = bc.Blocks[i].calculateHash()
-			dataToSign := fmt.Sprintf("%d%s%s%s", bc.Blocks[i].Index, bc.Blocks[i].Timestamp, bc.Blocks[i].PatientData.PersonalData.InsuranceNumber, bc.Blocks[i].PrevHash)
+			block.Hash = block.calculateHash()
+			dataToSign := fmt.Sprintf("%d%s%s%s", block.Index, block.Timestamp, block.PatientData.PersonalData.InsuranceNumber, block.PrevHash)
 			r, s := SignData(dataToSign, node.PrivateKey)
-			bc.Blocks[i].SignatureR = r
-			bc.Blocks[i].SignatureS = s
+			block.SignatureR = r
+			block.SignatureS = s
 			patientFound = true
 			break
 		}
 	}
+
 	if !patientFound {
-		patientData, exits := bc.Patients[id]
-		if !exits {
+		patientData, exists := bc.Patients[id]
+		if !exists {
 			fmt.Println("Patient not found")
 			return
 		}
@@ -81,6 +83,7 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 				Results:  "",
 			}},
 		}
+
 		newBlock := Block{
 			Index:       len(bc.Blocks),
 			Timestamp:   time.Now(),
@@ -88,22 +91,26 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 			PrevHash:    "",
 			Hash:        "",
 		}
+
 		if len(bc.Blocks) > 0 {
 			newBlock.PrevHash = bc.Blocks[len(bc.Blocks)-1].Hash
 		}
+
 		newBlock.Hash = newBlock.calculateHash()
 		dataToSign := fmt.Sprintf("%d%s%s%s", newBlock.Index, newBlock.Timestamp, newBlock.PatientData.PersonalData.InsuranceNumber, newBlock.PrevHash)
 		r, s := SignData(dataToSign, node.PrivateKey)
 		newBlock.SignatureR = r
 		newBlock.SignatureS = s
 
-		if VeryfiySignature(dataToSign, newBlock.SignatureR, newBlock.SignatureS, node.PublicKey) {
+		if VerifySignature(dataToSign, newBlock.SignatureR, newBlock.SignatureS, node.PublicKey) {
 			bc.validateAndAddBlock(newBlock, node)
 		}
 	}
 }
 
 func (bc *Blockchain) GetMedicalRecords(id string, passphrase string) []MedicalRecord {
+	bc.Mu.Lock()
+	defer bc.Mu.Unlock()
 
 	for _, block := range bc.Blocks {
 		if block.PatientData.PersonalData.ID == id {
