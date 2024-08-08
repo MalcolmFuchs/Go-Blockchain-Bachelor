@@ -2,7 +2,6 @@ package components
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -22,7 +21,6 @@ func (bc *Blockchain) AddTransactionToPool(transaction PatientRecord, r, s *big.
 	}
 
 	bc.TransactionPool = append(bc.TransactionPool, transaction)
-
 	bc.TxChan <- struct{}{}
 
 	return nil
@@ -38,13 +36,12 @@ func (bc *Blockchain) ValidateTransaction(transaction PatientRecord, r, s *big.I
 }
 
 func (bc *Blockchain) ProcessTransactions(passphrase string) {
-
 	for {
 		fmt.Println("Waiting for a new transaction signal...")
 		<-bc.TxChan
 		fmt.Println("Received a new transaction signal")
-
 		bc.PoolMu.Lock()
+
 		if len(bc.TransactionPool) == 0 {
 			bc.PoolMu.Unlock()
 			time.Sleep(time.Second)
@@ -54,25 +51,6 @@ func (bc *Blockchain) ProcessTransactions(passphrase string) {
 		transaction := bc.TransactionPool[0]
 		bc.TransactionPool = bc.TransactionPool[1:]
 		bc.PoolMu.Unlock()
-
-		node, err := bc.GetNextNode()
-		if err != nil {
-			fmt.Println("Error getting next node:", err)
-			continue
-		}
-
-		hash := sha256.Sum256([]byte(transaction.PersonalData.ID))
-		rSign, sSign, err := ecdsa.Sign(rand.Reader, node.PrivateKey, hash[:])
-		if err != nil {
-			fmt.Println("Error signing transaction:", err)
-			continue
-		}
-
-		err = bc.ValidateTransaction(transaction, rSign, sSign, node.PublicKey)
-		if err != nil {
-			fmt.Println("Invalid transaction:", err)
-			continue
-		}
 
 		for _, newRecord := range transaction.MedicalRecords {
 			bc.AddMedicalRecord(transaction.PersonalData.ID, newRecord, passphrase)
