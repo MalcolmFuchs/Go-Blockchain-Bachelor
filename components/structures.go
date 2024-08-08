@@ -25,7 +25,7 @@ type Block struct {
 
 type Blockchain struct {
 	Blocks          []Block                 `json:"blocks"`
-	Nodes           []AuthorityNode         `json:"nodes"`
+	Nodes           []*AuthorityNode        `json:"nodes"`
 	Patients        map[string]PersonalData `json:"patients"`
 	TransactionPool []PatientRecord         `json:"transactionPool"`
 	LastNodeIndex   int                     `json:"lastNodeIndex"`

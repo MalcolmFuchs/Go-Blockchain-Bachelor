@@ -66,9 +66,6 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 			InsuranceNumber: Encrypt(patientData.InsuranceNumber, passphrase),
 		}
 
-		fmt.Println("encryptedPatientData")
-		fmt.Println(encryptedPatientData)
-
 		newPatientRecord := PatientRecord{
 			PersonalData: PersonalData{
 				FirstName:       encryptedPatientData.FirstName,
@@ -86,19 +83,7 @@ func (bc *Blockchain) AddMedicalRecord(id string, newRecord MedicalRecord, passp
 			}},
 		}
 
-		newBlock := Block{
-			Index:       len(bc.Blocks),
-			Timestamp:   time.Now(),
-			PatientData: newPatientRecord,
-			PrevHash:    "",
-			Hash:        "",
-		}
-
-		if len(bc.Blocks) > 0 {
-			newBlock.PrevHash = bc.Blocks[len(bc.Blocks)-1].Hash
-		}
-
-		newBlock.Hash = newBlock.calculateHash()
+		newBlock := bc.createBlock(newPatientRecord)
 		dataToSign := fmt.Sprintf("%d%s%s%s", newBlock.Index, newBlock.Timestamp, newBlock.PatientData.PersonalData.InsuranceNumber, newBlock.PrevHash)
 		r, s := SignData(dataToSign, node.PrivateKey)
 		newBlock.SignatureR = r
@@ -119,10 +104,6 @@ func (bc *Blockchain) GetMedicalRecords(id string, passphrase string) ([]Medical
 			fmt.Printf("Found block with patient data: %+v\n", block.PatientData)
 
 			for _, encRecord := range block.PatientData.MedicalRecords {
-
-				fmt.Println("encRecord")
-				fmt.Println(encRecord.Notes)
-
 				decryptedNotes := Decrypt(encRecord.Notes, passphrase)
 				var decryptedRecord EncryptedMedicalRecord
 				err := json.Unmarshal([]byte(decryptedNotes), &decryptedRecord)

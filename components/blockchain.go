@@ -14,7 +14,7 @@ func init() {
 func CreateBlockchain() *Blockchain {
 	blockchain := &Blockchain{
 		Blocks:        []Block{},
-		Nodes:         []AuthorityNode{},
+		Nodes:         []*AuthorityNode{},
 		Patients:      make(map[string]PersonalData),
 		LastNodeIndex: -1,
 		TxChan:        make(chan struct{}),
@@ -51,5 +51,5 @@ func (bc *Blockchain) GetNextNode() (*AuthorityNode, error) {
 		return nil, errors.New("no nodes available")
 	}
 	bc.LastNodeIndex = (bc.LastNodeIndex + 1) % len(bc.Nodes)
-	return &bc.Nodes[bc.LastNodeIndex], nil
+	return bc.Nodes[bc.LastNodeIndex], nil
 }

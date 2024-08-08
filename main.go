@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/components"
 	blockchain "github.com/MalcolmFuchs/Go-Blockchain-Bachelor/components"
 )
 
@@ -21,11 +20,11 @@ func init() {
 	go blockchainInstance.ProcessTransactions(passphrase)
 
 	nodeNames := []string{"AOK", "TK", "Barmenia"}
-	nodes := []blockchain.AuthorityNode{}
+	nodes := []*blockchain.AuthorityNode{}
 
 	for i, name := range nodeNames {
 		privateKey, publicKey := blockchain.GenerateKeyPair()
-		node := blockchain.AuthorityNode{
+		node := &blockchain.AuthorityNode{
 			ID:         fmt.Sprintf("%d", i+1),
 			Name:       name,
 			PrivateKey: privateKey,
@@ -38,7 +37,7 @@ func init() {
 }
 
 func addPatientHandler(w http.ResponseWriter, r *http.Request) {
-	var patient components.PersonalData
+	var patient blockchain.PersonalData
 	err := json.NewDecoder(r.Body).Decode(&patient)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -54,7 +53,7 @@ func addPatientHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	transaction := components.PatientRecord{
+	transaction := blockchain.PatientRecord{
 		PersonalData: patient,
 	}
 
@@ -99,7 +98,7 @@ func getBlockchain(w http.ResponseWriter, r *http.Request) {
 }
 
 func addMedicalRecordHandler(w http.ResponseWriter, r *http.Request) {
-	var record components.MedicalRecord
+	var record blockchain.MedicalRecord
 	err := json.NewDecoder(r.Body).Decode(&record)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -121,7 +120,7 @@ func addMedicalRecordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var patientRecord components.PatientRecord
+	var patientRecord blockchain.PatientRecord
 	for i, record := range blockchainInstance.TransactionPool {
 		if record.PersonalData.ID == id {
 			patientRecord = blockchainInstance.TransactionPool[i]
@@ -131,7 +130,7 @@ func addMedicalRecordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if patientRecord.PersonalData.ID == "" {
-		patientRecord = components.PatientRecord{
+		patientRecord = blockchain.PatientRecord{
 			PersonalData: patient,
 		}
 	}
@@ -169,10 +168,6 @@ func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// if records == nil {
-	// 	http.Error(w, "No records found or access denied", http.StatusForbidden)
-	// 	return
-	// }
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(records)
