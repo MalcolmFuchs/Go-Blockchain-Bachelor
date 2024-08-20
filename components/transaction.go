@@ -35,7 +35,7 @@ func (bc *Blockchain) ValidateTransaction(transaction PatientRecord, r, s *big.I
 	return nil
 }
 
-func (bc *Blockchain) ProcessTransactions(passphrase string) {
+func (bc *Blockchain) ProcessTransaction(passphrase string) {
 	for {
 		fmt.Println("Waiting for a new transaction signal...")
 		<-bc.TxChan

@@ -17,7 +17,7 @@ var passphrase = "mysecretphrase12mysecretphrase12"
 
 func init() {
 	blockchainInstance = blockchain.CreateBlockchain()
-	go blockchainInstance.ProcessTransactions(passphrase)
+	go blockchainInstance.ProcessTransaction(passphrase)
 
 	nodeNames := []string{"AOK", "TK", "Barmenia"}
 	nodes := []*blockchain.AuthorityNode{}
