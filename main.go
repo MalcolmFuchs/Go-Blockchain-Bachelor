@@ -90,7 +90,7 @@ func getPatientHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(patient)
 }
 
-func getBlockchain(w http.ResponseWriter, r *http.Request) {
+func getBlockchainHandler(w http.ResponseWriter, r *http.Request) {
 	blockchainInstance.Mu.Lock()
 	defer blockchainInstance.Mu.Unlock()
 
@@ -174,7 +174,7 @@ func getMedicalRecordsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/blockchain", getBlockchain)
+	http.HandleFunc("/blockchain", getBlockchainHandler)
 	http.HandleFunc("/addRecord", addMedicalRecordHandler)
 	http.HandleFunc("/getRecords", getMedicalRecordsHandler)
 	http.HandleFunc("/addPatient", addPatientHandler)
