@@ -17,9 +17,8 @@ var authorityIP string
 var nodeCmd = &cobra.Command{
 	Use:   "node",
 	Short: "Start a blockchain node",
-	Long:  `Start a blockchain node. Use the -a flag to act as a authority node.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if authorityIP != "" {
+		if authorityIP == "" {
 			startAuthorityNode()
 		} else {
 			startClientNode(authorityIP)
@@ -98,17 +97,17 @@ func sendTransactionToAuthorityNode(transaction blockchain.EncryptedPatientRecor
 
 	jsonData, err := json.Marshal(transaction)
 	if err != nil {
-		return fmt.Errorf("Error serializing transaction: %v", err)
+		return fmt.Errorf("error serializing transaction: %v", err)
 	}
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("Error sending transaction to authority node: %v", err)
+		return fmt.Errorf("error sending transaction to authority node: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Received non-OK response from authority node: %v", resp.Status)
+		return fmt.Errorf("received non-OK response from authority node: %v", resp.Status)
 	}
 
 	return nil
