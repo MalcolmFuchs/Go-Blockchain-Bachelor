@@ -1,39 +1,33 @@
 package blockchain
 
-import "fmt"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"time"
+)
 
-func (bc *Blockchain) AddTransactionToPool(record EncryptedPatientRecord) {
-	bc.PoolMu.Lock()
-	defer bc.PoolMu.Unlock()
-
-	bc.TransactionPool = append(bc.TransactionPool, record)
-	fmt.Println("Encrypted transaction added to pool")
-
-	if len(bc.TransactionPool) >= 10 {
-		bc.CreateBlock()
-	}
+type Transaction struct {
+	ID                   string
+	EncryptedPatientData []byte
+	EncryptedAESKey      []byte
+	PatientSign          []byte
+	DoctorSign           []byte
+	Timestamp            time.Time
 }
 
-func (bc *Blockchain) AddEncryptedRecord(record EncryptedPatientRecord) {
-	bc.PoolMu.Lock()
-	defer bc.PoolMu.Unlock()
-
-	bc.TransactionPool = append(bc.TransactionPool, record)
-	fmt.Println("Encrypted transaction added to pool")
+func NewTransaction(encryptedData, encryptedAESKey, patientSign []byte) Transaction {
+	tx := Transaction{
+		ID:                   generateTransactionID(),
+		EncryptedPatientData: encryptedData,
+		EncryptedAESKey:      encryptedAESKey,
+		PatientSign:          patientSign,
+		Timestamp:            time.Now(),
+	}
+	return tx
 }
 
-func (bc *Blockchain) ValidateTransaction(record EncryptedPatientRecord) bool {
-	if record.PatientID == "" {
-		fmt.Println("Invalid Transaction: Missing Patient ID")
-		return false
-	}
-
-	fmt.Println("Transaction is valid.")
-	return true
-}
-
-func (bc *Blockchain) ProcessTransaction(record EncryptedPatientRecord) {
-	if bc.ValidateTransaction(record) {
-		bc.AddTransactionToPool(record)
-	}
+func generateTransactionID() string {
+	h := sha256.New()
+	h.Write([]byte(time.Now().String()))
+	return hex.EncodeToString(h.Sum(nil))
 }
