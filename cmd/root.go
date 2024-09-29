@@ -8,9 +8,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "go-blockchain-bachelor",
-	Short: "eGA Blockchain CLI",
-	Long:  `eGA Blockchain Command Line Interface for managing nodes and transactions.`,
+	Use:   "ega-blockchain",
+	Short: "EGA Blockchain Application",
+	Long:  `EGA Blockchain is a distributed application to manage patient records using blockchain technology.`,
 }
 
 func Execute() {

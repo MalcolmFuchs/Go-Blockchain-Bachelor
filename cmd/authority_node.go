@@ -10,20 +10,18 @@ import (
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
 )
 
-// AuthorityNode represents the node responsible for creating blocks
 type AuthorityNode struct {
 	PrivateKey          ed25519.PrivateKey        // Private Key des Authority Nodes zur Signierung
 	Blockchain          *blockchain.Blockchain    // Referenz auf die Blockchain-Struktur
-	PendingTransactions []*blockchain.Transaction // Liste von ausstehenden Transaktionen
-	Node                *Node                     // Referenz auf den Node
+	PendingTransactions []*blockchain.Transaction // Liste der ausstehenden Transaktionen
+	Node                *Node                     // Referenz auf den allgemeinen Node
 	LastBlockTimestamp  int64                     // Zeitstempel des zuletzt erstellten Blocks
 }
 
-// NewAuthorityNode creates a new authority node with a blockchain and pending transactions
 func NewAuthorityNode(privateKey ed25519.PrivateKey, node *Node) *AuthorityNode {
 	return &AuthorityNode{
 		PrivateKey:          privateKey,
-		Blockchain:          &blockchain.Blockchain{Blocks: []*blockchain.Block{}, BlockMap: make(map[string]*blockchain.Block)},
+		Blockchain:          blockchain.NewBlockchain(privateKey),
 		PendingTransactions: []*blockchain.Transaction{},
 		Node:                node,
 		LastBlockTimestamp:  time.Now().Unix(),
@@ -42,6 +40,7 @@ func (a *AuthorityNode) CreateBlock() (*blockchain.Block, error) {
 
 	newBlock := &blockchain.Block{
 		ID:           uint64(len(a.Blockchain.Blocks) + 1),
+		PreviousHash: a.Blockchain.Blocks[len(a.Blockchain.Blocks)-1].Hash,
 		Transactions: a.PendingTransactions,
 		Timestamp:    time.Now().Unix(),
 	}
@@ -50,9 +49,9 @@ func (a *AuthorityNode) CreateBlock() (*blockchain.Block, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize block: %v", err)
 	}
-
 	hash := sha256.Sum256(blockBytes)
 	newBlock.Hash = hash[:]
+
 	newBlock.Signature = ed25519.Sign(a.PrivateKey, newBlock.Hash)
 
 	if err := a.AddBlockToBlockchain(newBlock); err != nil {
@@ -82,6 +81,24 @@ func (a *AuthorityNode) CheckAndCreateBlock() error {
 		if err != nil {
 			return fmt.Errorf("failed to create block: %v", err)
 		}
+	}
+
+	return nil
+}
+
+func (a *AuthorityNode) ValidateBlock(block *blockchain.Block) error {
+	blockBytes, err := json.Marshal(block)
+	if err != nil {
+		return fmt.Errorf("failed to serialize block: %v", err)
+	}
+	calculatedHash := sha256.Sum256(blockBytes)
+
+	if fmt.Sprintf("%x", calculatedHash[:]) != fmt.Sprintf("%x", block.Hash) {
+		return fmt.Errorf("invalid block hash for block ID %d", block.ID)
+	}
+
+	if !ed25519.Verify(a.Node.TrustedPublicKey, block.Hash, block.Signature) {
+		return fmt.Errorf("invalid signature for block ID %d", block.ID)
 	}
 
 	return nil

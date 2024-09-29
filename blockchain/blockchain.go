@@ -9,44 +9,30 @@ import (
 	"time"
 )
 
-// Block represents a single block in the blockchain
-type Block struct {
-	ID           uint64         `json:"id"`
-	Hash         []byte         `json:"hash"`
-	PreviousHash []byte         `json:"previous_hash"`
-	Transactions []*Transaction `json:"transactions"`
-	Signature    []byte         `json:"signature"`
-	Timestamp    int64          `json:"timestamp"`
-}
-
+// Blockchain represents the structure of the blockchain containing all blocks and a map for quick lookup
 type Blockchain struct {
-	Blocks   []*Block          `json:"blocks"`
-	BlockMap map[string]*Block `json:"block_map"`
+	Blocks   []*Block          // Liste aller Blöcke in der Blockchain
+	BlockMap map[string]*Block // Mapping von Block-Hash zu Block, um schnellen Zugriff zu ermöglichen
 }
 
-func (bc *Blockchain) AddBlock(newBlock *Block, authorityPublicKey ed25519.PublicKey) error {
-	// Validiere Block-Signatur mit Public Key des Authority Nodes
-	if !ed25519.Verify(authorityPublicKey, newBlock.Hash, newBlock.Signature) {
-		return fmt.Errorf("invalid block signature")
-	}
-
-	bc.Blocks = append(bc.Blocks, newBlock)
-
-	// Block in BlockMap hinzufügen. Hash als String-Schlüssel.
-	hashString := hex.EncodeToString(newBlock.Hash)
-	bc.BlockMap[hashString] = newBlock
-
-	return nil
-}
-
-func (bc *Blockchain) GetBlockchainData() ([]byte, error) {
-	blockchainData, err := json.MarshalIndent(bc, "", "  ")
+// NewBlockchain creates a new blockchain with a genesis block
+func NewBlockchain(privateKey ed25519.PrivateKey) *Blockchain {
+	// Erstelle den Genesis-Block und initialisiere die Blockchain
+	genesisBlock, err := CreateGenesisBlock(privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize blockchain data: %v", err)
+		fmt.Printf("Failed to create genesis block: %v\n", err)
+		return nil
 	}
-	return blockchainData, nil
+
+	blockchain := &Blockchain{
+		Blocks:   []*Block{genesisBlock},
+		BlockMap: map[string]*Block{hex.EncodeToString(genesisBlock.Hash): genesisBlock},
+	}
+
+	return blockchain
 }
 
+// CreateGenesisBlock creates the initial block of the blockchain
 func CreateGenesisBlock(authorityPrivateKey ed25519.PrivateKey) (*Block, error) {
 	genesisBlock := &Block{
 		ID:           0,
@@ -60,30 +46,41 @@ func CreateGenesisBlock(authorityPrivateKey ed25519.PrivateKey) (*Block, error) 
 		return nil, fmt.Errorf("failed to serialize genesis block: %v", err)
 	}
 
-	blockHash := sha256.Sum256(blockBytes)
-	genesisBlock.Hash = blockHash[:]
+	hash := sha256.Sum256(blockBytes)
+	genesisBlock.Hash = hash[:]
+
+	// 4. Signiere den Genesis-Block mit dem Private Key des Authority Nodes
 	genesisBlock.Signature = ed25519.Sign(authorityPrivateKey, genesisBlock.Hash)
 
 	fmt.Println("Genesis Block created with ID 0 and hash:", genesisBlock.Hash)
 	return genesisBlock, nil
 }
 
-func NewBlockchain(authorityPrivateKey ed25519.PrivateKey) (*Blockchain, error) {
-	blockchain := &Blockchain{
-		Blocks:   []*Block{},
-		BlockMap: make(map[string]*Block),
+// AddBlock adds a new block to the blockchain and updates the BlockMap
+func (bc *Blockchain) AddBlock(block *Block) error {
+	// 1. Überprüfe, ob der Block mit der Blockchain konsistent ist
+	if len(bc.Blocks) > 0 {
+		lastBlock := bc.Blocks[len(bc.Blocks)-1]
+		if hex.EncodeToString(block.PreviousHash) != hex.EncodeToString(lastBlock.Hash) {
+			return fmt.Errorf("block's previous hash does not match the last block's hash")
+		}
 	}
 
-	genesisBlock, err := CreateGenesisBlock(authorityPrivateKey)
+	bc.Blocks = append(bc.Blocks, block)
+	bc.BlockMap[hex.EncodeToString(block.Hash)] = block
+
+	fmt.Printf("Block with ID %d and hash %x added to the blockchain\n", block.ID, block.Hash)
+	return nil
+}
+
+// GetBlockchainData returns the serialized blockchain data as JSON
+func (bc *Blockchain) GetBlockchainData() ([]byte, error) {
+	blockchainData, err := json.Marshal(bc.Blocks)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create genesis block: %v", err)
+		return nil, fmt.Errorf("failed to serialize blockchain data: %v", err)
 	}
 
-	blockchain.Blocks = append(blockchain.Blocks, genesisBlock)
-	hashString := fmt.Sprintf("%x", genesisBlock.Hash)
-	blockchain.BlockMap[hashString] = genesisBlock
-
-	return blockchain, nil
+	return blockchainData, nil
 }
 
 func (bc *Blockchain) ValidateBlock(block *Block, authorityPublicKey ed25519.PublicKey) error {
@@ -105,8 +102,9 @@ func (bc *Blockchain) ValidateBlock(block *Block, authorityPublicKey ed25519.Pub
 }
 
 func (bc *Blockchain) ValidateBlockchain(authorityPublicKey ed25519.PublicKey) error {
-
+	// 1. Iteriere durch alle Blöcke der Blockchain
 	for i, block := range bc.Blocks {
+		// 2. Validiere den aktuellen Block
 		if err := bc.ValidateBlock(block, authorityPublicKey); err != nil {
 			return fmt.Errorf("block validation failed: %v", err)
 		}
@@ -119,29 +117,4 @@ func (bc *Blockchain) ValidateBlockchain(authorityPublicKey ed25519.PublicKey) e
 
 	fmt.Println("Blockchain validation successful. All blocks are valid.")
 	return nil
-}
-
-func (bc *Blockchain) PrintBlockchain() {
-	fmt.Println("Current Blockchain Overview:")
-
-	// 1. Iteriere durch die Blöcke in der Blockchain und drucke Informationen aus
-	for _, block := range bc.Blocks {
-		fmt.Printf("Block ID: %d\n", block.ID)
-		fmt.Printf("Hash: %x\n", block.Hash)
-		if block.PreviousHash != nil {
-			fmt.Printf("Previous Hash: %x\n", block.PreviousHash)
-		} else {
-			fmt.Println("Previous Hash: None (Genesis Block)")
-		}
-		fmt.Println("Transactions:")
-
-		// 2. Iteriere durch die Transaktionen im Block
-		for _, tx := range block.Transactions {
-			fmt.Printf("  Transaction Hash: %x\n", tx.Hash)
-			fmt.Printf("  Doctor: %x\n", tx.Doctor)
-			fmt.Printf("  Patient: %x\n", tx.Patient)
-			fmt.Printf("  Timestamp: %d\n", tx.Timestamp)
-		}
-		fmt.Println("-----------------------------------")
-	}
 }
