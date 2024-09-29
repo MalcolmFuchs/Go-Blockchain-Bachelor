@@ -58,8 +58,6 @@ func (api *API) CreateBlockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	unessesary
-
 	blockData, err := json.Marshal(block)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to serialize block: %v", err), http.StatusInternalServerError)
