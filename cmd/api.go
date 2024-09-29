@@ -37,11 +37,13 @@ func (api *API) AddTransactionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = blockchain.SignTransaction(&transaction, api.AuthorityNode.Node.PrivateKey)
+	signature, err := blockchain.SignTransaction(&transaction, api.AuthorityNode.Node.PrivateKey)
 	if err != nil {
 		http.Error(w, "failed to sign transaction", http.StatusInternalServerError)
 		return
 	}
+
+	fmt.Println(signature)
 
 	api.AuthorityNode.PendingTransactions = append(api.AuthorityNode.PendingTransactions, &transaction)
 
@@ -55,6 +57,8 @@ func (api *API) CreateBlockHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("failed to create block: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	unessesary
 
 	blockData, err := json.Marshal(block)
 	if err != nil {
