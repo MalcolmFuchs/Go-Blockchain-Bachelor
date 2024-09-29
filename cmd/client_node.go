@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
 )
@@ -75,3 +76,10 @@ func (n *Node) ForwardTransaction(transaction *blockchain.Transaction) error {
 	fmt.Printf("Forwarding transaction with hash %x to authority node at %s\n", transaction.Hash, n.AuthorityNodeAddress)
 	return nil
 }
+
+func (a *Node) Listen(addr string) {
+  http.ListenAndServe(addr, nil)
+}
+
+// TODO: Build discovery function ()
+func (a *Node) AuthorityNodeDiscovery() {}

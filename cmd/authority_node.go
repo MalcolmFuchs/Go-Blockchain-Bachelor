@@ -12,20 +12,27 @@ import (
 
 type AuthorityNode struct {
 	PrivateKey          ed25519.PrivateKey        // Private Key des Authority Nodes zur Signierung
-	Blockchain          *blockchain.Blockchain    // Referenz auf die Blockchain-Struktur
 	PendingTransactions []*blockchain.Transaction // Liste der ausstehenden Transaktionen
-	Node                *Node                     // Referenz auf den allgemeinen Node
+	*Node                                         // Referenz auf den allgemeinen Node
 	LastBlockTimestamp  int64                     // Zeitstempel des zuletzt erstellten Blocks
 }
 
-func NewAuthorityNode(privateKey ed25519.PrivateKey, node *Node) *AuthorityNode {
-	return &AuthorityNode{
+func NewAuthorityNode(privateKey ed25519.PrivateKey, publicKey ed25519.PublicKey) *AuthorityNode {
+	node := NewNode(privateKey, publicKey, "localhost:8080")
+
+	authorityNode := &AuthorityNode{
 		PrivateKey:          privateKey,
-		Blockchain:          blockchain.NewBlockchain(privateKey),
 		PendingTransactions: []*blockchain.Transaction{},
 		Node:                node,
 		LastBlockTimestamp:  time.Now().Unix(),
 	}
+
+	// Create Genesis block
+	authorityNode.Blockchain = blockchain.NewBlockchain(privateKey)
+
+	go authorityNode.StartBlockGenerator()
+
+	return authorityNode
 }
 
 func (a *AuthorityNode) AddTransaction(transaction *blockchain.Transaction) {
@@ -76,7 +83,7 @@ func (a *AuthorityNode) AddBlockToBlockchain(block *blockchain.Block) error {
 }
 
 func (a *AuthorityNode) CheckAndCreateBlock() error {
-	if len(a.PendingTransactions) >= 10 || time.Now().Unix()-a.LastBlockTimestamp >= 300 {
+	if len(a.PendingTransactions) >= 10 || (time.Now().Unix()-a.LastBlockTimestamp >= 300 && len(a.PendingTransactions) > 0) {
 		_, err := a.CreateBlock()
 		if err != nil {
 			return fmt.Errorf("failed to create block: %v", err)
@@ -103,3 +110,6 @@ func (a *AuthorityNode) ValidateBlock(block *blockchain.Block) error {
 
 	return nil
 }
+
+// TODO: Build function, that checks if conditions are met every 5th minute with sleep
+func (a *AuthorityNode) StartBlockGenerator() {}

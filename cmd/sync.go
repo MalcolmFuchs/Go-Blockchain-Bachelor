@@ -10,7 +10,7 @@ import (
 )
 
 type SyncRequest struct {
-	LastBlockHash string `json:"last_block_hash"`
+	LastBlockHash string `json:"lastBlockHash"`
 }
 
 type SyncResponse struct {
@@ -36,8 +36,9 @@ func (n *Node) SyncWithAuthorityNode(authorityNodeAddress string) error {
 		return fmt.Errorf("failed to decode sync response: %v", err)
 	}
 
+  n.Blockchain.Blocks = append(n.Blockchain.Blocks, syncResponse.Blocks...)
+
 	for _, block := range syncResponse.Blocks {
-		n.Blockchain.Blocks = append(n.Blockchain.Blocks, block)
 		n.Blockchain.BlockMap[fmt.Sprintf("%x", block.Hash)] = block
 	}
 
