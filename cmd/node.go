@@ -7,32 +7,34 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var authorityIP string
-var authorityPrivateKey ed25519.PrivateKey
+// Definition der Variablen für Flags
+var authorityAddress string
 
-func init() {
-	rootCmd.AddCommand(nodeCmd)
-	nodeCmd.Flags().StringVarP(&authorityIP, "authority", "a", "", "IP address of the authority node")
-}
-
+// nodeCmd represents the node command
 var nodeCmd = &cobra.Command{
 	Use:   "node",
-	Short: "Start a blockchain node",
+	Short: "Start a node",
+	Long:  `Start a node either as an authority node or as a client `,
 	Run: func(cmd *cobra.Command, args []string) {
-		if authorityIP != "" {
-			StartClientNode(authorityIP)
+		if authorityAddress == "" {
+			// Authority Node erstellen
+			authorityPrivateKey, authorityPublicKey, _ := ed25519.GenerateKey(nil)
+			nodeInstance := NewNode(authorityPrivateKey, authorityPublicKey, "localhost:8080")
+			authorityNode := NewAuthorityNode(authorityPrivateKey, nodeInstance)
+			fmt.Println("Starting Authority ..")
+			// Starte die Blockerstellungslogik oder API
 		} else {
-			fmt.Println("Starting Authority Node...")
-			authorityPrivateKey = getAuthorityPrivateKey()
-			StartAuthorityNode(authorityPrivateKey)
+			// Client Node erstellen
+			clientPrivateKey, clientPublicKey, _ := ed25519.GenerateKey(nil)
+			nodeInstance := NewNode(clientPrivateKey, clientPublicKey, authorityAddress)
+			fmt.Printf("Starting Client Connecting to Authority Node at %s\n", authorityAddress)
+			// Logik für den Client Node (z.B. Synchronisation)
 		}
 	},
 }
 
-func getAuthorityPrivateKey() ed25519.PrivateKey {
-	_, privateKey, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		panic("Error generating authority private key")
-	}
-	return privateKey
+func init() {
+	// Flag für die IP-Adresse des Authority Nodes hinzufügen
+	nodeCmd.Flags().StringVarP(&authorityAddress, "authority", "a", "", "IP address of the authority node")
+	rootCmd.AddCommand(nodeCmd)
 }

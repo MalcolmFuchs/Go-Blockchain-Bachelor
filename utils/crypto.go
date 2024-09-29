@@ -3,77 +3,92 @@ package utils
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"errors"
+	"fmt"
 	"io"
-
-	"golang.org/x/crypto/curve25519"
-	"golang.org/x/crypto/hkdf"
+	"math/big"
 )
 
-// Verschlüsselt die Patientendaten mit AES-GCM
-func EncryptData(aesKey, plaintext []byte) ([]byte, error) {
-	block, err := aes.NewCipher(aesKey)
+func GenerateKeys() (ed25519.PublicKey, ed25519.PrivateKey, error) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("failed to generate keys: %v", err)
+	}
+	return publicKey, privateKey, nil
+}
+
+func EncryptData(plaintext, key []byte) ([]byte, []byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create AES cipher: %v", err)
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("failed to create GCM mode: %v", err)
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, err
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, fmt.Errorf("failed to generate nonce: %v", err)
 	}
 
-	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
-	return ciphertext, nil
+	ciphertext := gcm.Seal(nil, nonce, plaintext, nil)
+
+	return ciphertext, nonce, nil
 }
 
-// Verschlüssele den AES-Schlüssel mit dem Public Key des Arztes
-func EncryptAESKeyWithDoctorKey(doctorPublicKey ed25519.PublicKey, aesKey []byte, patientPrivateKey ed25519.PrivateKey) ([]byte, error) {
-	if len(doctorPublicKey) != ed25519.PublicKeySize || len(patientPrivateKey) != ed25519.PrivateKeySize {
-		return nil, errors.New("invalid key size")
-	}
-
-	// Berechne den Shared Secret Key mit X25519
-	var sharedSecret [32]byte
-	_, err := curve25519.X25519(patientPrivateKey[:32], doctorPublicKey)
+func DecryptData(ciphertext, key, nonce []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create AES cipher: %v", err)
 	}
 
-	// Verwende HKDF, um den shared secret in einen Verschlüsselungsschlüssel zu verwandeln
-	hash := sha256.New
-	hkdf := hkdf.New(hash, sharedSecret[:], nil, nil)
-
-	// Erstelle einen AES-Schlüssel aus dem Shared Secret
-	aesSharedKey := make([]byte, 32) // 256-bit AES-Schlüssel
-	if _, err := io.ReadFull(hkdf, aesSharedKey); err != nil {
-		return nil, err
-	}
-
-	// Verschlüssele den AES-Schlüssel mit AES-GCM
-	encryptedAESKey, err := EncryptData(aesSharedKey, aesKey)
+	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create GCM mode: %v", err)
 	}
+
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt data: %v", err)
+	}
+
+	return plaintext, nil
+}
+
+func GenerateRandomBytes(length int) ([]byte, error) {
+	randomBytes := make([]byte, length)
+
+	if _, err := io.ReadFull(rand.Reader, randomBytes); err != nil {
+		return nil, fmt.Errorf("failed to generate random bytes: %v", err)
+	}
+
+	return randomBytes, nil
+}
+
+func GenerateECDSAKeys() (*ecdsa.PrivateKey, error) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate ECDSA key pair: %v", err)
+	}
+	return privateKey, nil
+}
+
+func EncryptWithPublicKey(data []byte, publicKey *ecdsa.PublicKey) ([]byte, error) {
+	aesKey := make([]byte, 32) // 32 Bytes = 256 Bit
+	if _, err := io.ReadFull(rand.Reader, aesKey); err != nil {
+		return nil, fmt.Errorf("failed to generate AES key: %v", err)
+	}
+
+	r, s, err := ecdsa.Sign(rand.Reader, &ecdsa.PrivateKey{D: big.NewInt(1), PublicKey: *publicKey}, aesKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt AES key: %v", err)
+	}
+	encryptedAESKey := append(r.Bytes(), s.Bytes()...)
 
 	return encryptedAESKey, nil
-}
-
-func DecodePublicKey(encodedKey string) (ed25519.PublicKey, error) {
-	decodedKey, err := base64.StdEncoding.DecodeString(encodedKey)
-	if err != nil {
-		return nil, errors.New("invalid base64 encoding")
-	}
-	if len(decodedKey) != ed25519.PublicKeySize {
-		return nil, errors.New("invalid public key size")
-	}
-	return ed25519.PublicKey(decodedKey), nil
 }

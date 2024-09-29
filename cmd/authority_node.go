@@ -1,91 +1,88 @@
 package cmd
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"net"
 	"time"
 
-	"crypto/ed25519"
-
-	blockchain "github.com/MalcolmFuchs/Go-Blockchain-Bachelor/block"
-	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/utils"
+	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
 )
 
-// StartAuthorityNode startet den Authority Node und verwaltet Transaktionen sowie Blockerstellung
-func StartAuthorityNode(authorityPrivateKey ed25519.PrivateKey) {
-	ticker := time.NewTicker(5 * time.Minute)
-	transactionPool := make([]blockchain.Transaction, 0)
+// AuthorityNode represents the node responsible for creating blocks
+type AuthorityNode struct {
+	PrivateKey          ed25519.PrivateKey        // Private Key des Authority Nodes zur Signierung
+	Blockchain          *blockchain.Blockchain    // Referenz auf die Blockchain-Struktur
+	PendingTransactions []*blockchain.Transaction // Liste von ausstehenden Transaktionen
+	Node                *Node                     // Referenz auf den Node
+	LastBlockTimestamp  int64                     // Zeitstempel des zuletzt erstellten Blocks
+}
 
-	for {
-		select {
-		case <-ticker.C:
-			if len(transactionPool) > 0 {
-				createAndSignBlock(transactionPool, authorityPrivateKey)
-				transactionPool = []blockchain.Transaction{}
-			}
-		default:
-			newTransaction, err := ReceiveTransactionFromClient()
-			if err != nil {
-				fmt.Println("Error receiving transaction:", err)
-				continue
-			}
+// NewAuthorityNode creates a new authority node with a blockchain and pending transactions
+func NewAuthorityNode(privateKey ed25519.PrivateKey, node *Node) *AuthorityNode {
+	return &AuthorityNode{
+		PrivateKey:          privateKey,
+		Blockchain:          &blockchain.Blockchain{Blocks: []*blockchain.Block{}, BlockMap: make(map[string]*blockchain.Block)},
+		PendingTransactions: []*blockchain.Transaction{},
+		Node:                node,
+		LastBlockTimestamp:  time.Now().Unix(),
+	}
+}
 
-			patientPublicKey := utils.GetPatientPublicKey(newTransaction.PatientSign)
-			if !utils.VerifySignature(patientPublicKey, newTransaction.EncryptedPatientData, newTransaction.PatientSign) {
-				fmt.Println("Invalid patient signature")
-				continue
-			}
+func (a *AuthorityNode) AddTransaction(transaction *blockchain.Transaction) {
+	a.PendingTransactions = append(a.PendingTransactions, transaction)
+	fmt.Printf("Transaction %x added to pending transactions\n", transaction.Hash)
+}
 
-			if newTransaction.DoctorSign != nil {
-				doctorPublicKey := utils.GetDoctorPublicKey()
-				if !utils.VerifySignature(doctorPublicKey, newTransaction.EncryptedPatientData, newTransaction.DoctorSign) {
-					fmt.Println("Invalid doctor signature")
-					continue
-				}
-			}
+func (a *AuthorityNode) CreateBlock() (*blockchain.Block, error) {
+	if len(a.PendingTransactions) < 10 {
+		return nil, fmt.Errorf("not enough transactions to create a new block")
+	}
 
-			transactionPool = append(transactionPool, newTransaction)
+	newBlock := &blockchain.Block{
+		ID:           uint64(len(a.Blockchain.Blocks) + 1),
+		Transactions: a.PendingTransactions,
+		Timestamp:    time.Now().Unix(),
+	}
 
-			if len(transactionPool) >= 10 {
-				createAndSignBlock(transactionPool, authorityPrivateKey)
-				transactionPool = []blockchain.Transaction{}
-			}
+	blockBytes, err := json.Marshal(newBlock)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize block: %v", err)
+	}
+
+	hash := sha256.Sum256(blockBytes)
+	newBlock.Hash = hash[:]
+	newBlock.Signature = ed25519.Sign(a.PrivateKey, newBlock.Hash)
+
+	if err := a.AddBlockToBlockchain(newBlock); err != nil {
+		return nil, fmt.Errorf("failed to add block to blockchain: %v", err)
+	}
+
+	a.PendingTransactions = []*blockchain.Transaction{}
+
+	fmt.Printf("New block created with ID %d and hash %x\n", newBlock.ID, newBlock.Hash)
+	return newBlock, nil
+}
+
+func (a *AuthorityNode) AddBlockToBlockchain(block *blockchain.Block) error {
+	a.Blockchain.Blocks = append(a.Blockchain.Blocks, block)
+	hashString := fmt.Sprintf("%x", block.Hash)
+	a.Blockchain.BlockMap[hashString] = block
+
+	a.LastBlockTimestamp = block.Timestamp
+
+	fmt.Printf("Block with ID %d added to the blockchain\n", block.ID)
+	return nil
+}
+
+func (a *AuthorityNode) CheckAndCreateBlock() error {
+	if len(a.PendingTransactions) >= 10 || time.Now().Unix()-a.LastBlockTimestamp >= 300 {
+		_, err := a.CreateBlock()
+		if err != nil {
+			return fmt.Errorf("failed to create block: %v", err)
 		}
 	}
-}
 
-func createAndSignBlock(transactions []blockchain.Transaction, authorityPrivateKey ed25519.PrivateKey) {
-	lastBlock := blockchain.GetLastBlock()
-
-	newBlock := blockchain.NewBlock(transactions, lastBlock.Hash)
-
-	utils.SignBlock(&newBlock, authorityPrivateKey)
-
-	blockchain.AddBlock(newBlock)
-
-	fmt.Println("Block created and signed with", len(transactions), "transactions")
-}
-
-// ReceiveTransactionFromClient empfängt eine Transaktion von einem Client Node über TCP
-func ReceiveTransactionFromClient() (blockchain.Transaction, error) {
-	ln, err := net.Listen("tcp", ":8081") // Authority Node lauscht auf Port 8081
-	if err != nil {
-		return blockchain.Transaction{}, fmt.Errorf("Error setting up server: %v", err)
-	}
-	defer ln.Close()
-
-	conn, err := ln.Accept()
-	if err != nil {
-		return blockchain.Transaction{}, fmt.Errorf("Error accepting connection: %v", err)
-	}
-	defer conn.Close()
-
-	var transaction blockchain.Transaction
-	err = json.NewDecoder(conn).Decode(&transaction)
-	if err != nil {
-		return blockchain.Transaction{}, fmt.Errorf("Error decoding transaction: %v", err)
-	}
-
-	return transaction, nil
+	return nil
 }

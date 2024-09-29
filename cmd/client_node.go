@@ -1,80 +1,77 @@
 package cmd
 
 import (
-	"encoding/json"
+	"crypto/ed25519"
+	"encoding/hex"
 	"fmt"
-	"net"
-	"net/http"
 
-	blockchain "github.com/MalcolmFuchs/Go-Blockchain-Bachelor/block"
-	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/utils"
+	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
 )
 
-type TransactionRequest struct {
-	PatientData  string `json:"patientData"`
-	DoctorPubKey string `json:"doctorPubKey"` // Public Key des Arztes in Base64-Form
+type Node struct {
+	Blockchain           *blockchain.Blockchain
+	Doctors              map[string]DoctorData
+	Patients             map[string]PatientData
+	TrustedPublicKey     ed25519.PublicKey
+	AuthorityNodeAddress string
+	PrivateKey           ed25519.PrivateKey
 }
 
-func StartClientNode(authorityIP string) {
-	http.HandleFunc("/addTransaction", handleTransactionRequest)
-	fmt.Println("Client Node running. Send transactions via POST to /addTransaction")
-	http.ListenAndServe(":8080", nil) // Client Node API läuft auf Port 8080
+func NewNode(privateKey ed25519.PrivateKey, trustedPublicKey ed25519.PublicKey, authorityNodeAddress string) *Node {
+	return &Node{
+		Blockchain:           &blockchain.Blockchain{Blocks: []*blockchain.Block{}, BlockMap: make(map[string]*blockchain.Block)},
+		Doctors:              make(map[string]DoctorData),
+		Patients:             make(map[string]PatientData),
+		TrustedPublicKey:     trustedPublicKey,
+		PrivateKey:           privateKey,
+		AuthorityNodeAddress: authorityNodeAddress,
+	}
 }
 
-func handleTransactionRequest(w http.ResponseWriter, r *http.Request) {
-	var req TransactionRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Public Key des Arztes dekodieren
-	doctorPublicKey, err := utils.DecodePublicKey(req.DoctorPubKey)
-	if err != nil {
-		http.Error(w, "Invalid doctor public key", http.StatusBadRequest)
-		return
-	}
-
-	aesKey := utils.GenerateAESKey()
-
-	// Patientendaten mit AES-GCM verschlüsseln
-	encryptedData, err := utils.EncryptData(aesKey, []byte(req.PatientData))
-	if err != nil {
-		http.Error(w, "Error encrypting patient data", http.StatusInternalServerError)
-		return
-	}
-
-	patientPrivateKey := utils.GetPatientPrivateKey()
-	patientSign := utils.SignTransaction(patientPrivateKey, encryptedData)
-
-	// AES-Schlüssel mit dem Public Key des Arztes verschlüsseln
-	encryptedAESKey, err := utils.EncryptAESKeyWithDoctorKey(doctorPublicKey, aesKey, patientPrivateKey)
-	if err != nil {
-		http.Error(w, "Error encrypting AES key", http.StatusInternalServerError)
-		return
-	}
-
-	transaction := blockchain.NewTransaction(encryptedData, encryptedAESKey, patientSign)
-
-	SendTransactionToAuthority(transaction)
-
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Transaction successfully created and sent")
+type DoctorData struct {
+	FirstName string            `json:"first_name"`
+	LastName  string            `json:"last_name"`
+	PublicKey ed25519.PublicKey `json:"public_key"`
 }
 
-func SendTransactionToAuthority(transaction blockchain.Transaction) {
-	conn, err := net.Dial("tcp", "localhost:8081") // Sende an Authority Node
-	if err != nil {
-		fmt.Println("Error connecting to authority node:", err)
-		return
-	}
-	defer conn.Close()
+type PatientData struct {
+	Transactions map[string]*blockchain.Transaction `json:"transactions"`
+	PublicKey    ed25519.PublicKey                  `json:"public_key"`
+}
 
-	err = json.NewEncoder(conn).Encode(transaction)
-	if err != nil {
-		fmt.Println("Error sending transaction:", err)
-		return
+func (n *Node) AddDoctor(doctor DoctorData) {
+	doctorKeyHash := hex.EncodeToString(doctor.PublicKey)
+	n.Doctors[doctorKeyHash] = doctor
+}
+
+func (n *Node) GetDoctor(publicKey ed25519.PublicKey) (*DoctorData, error) {
+	doctorKeyHash := hex.EncodeToString(publicKey)
+
+	if doctor, exists := n.Doctors[doctorKeyHash]; exists {
+		return &doctor, nil
 	}
-	fmt.Println("Transaction sent to authority node successfully")
+	return nil, fmt.Errorf("doctor not found")
+}
+
+func (n *Node) AddPatient(patient PatientData) {
+	patientKeyHash := hex.EncodeToString(patient.PublicKey)
+	n.Patients[patientKeyHash] = patient
+}
+
+func (n *Node) GetPatient(publicKey ed25519.PublicKey) (*PatientData, error) {
+	patientKeyHash := hex.EncodeToString(publicKey)
+	if patient, exists := n.Patients[patientKeyHash]; exists {
+		return &patient, nil
+	}
+	return nil, fmt.Errorf("patient not found")
+}
+
+// Transaction to Authority-Client
+func (n *Node) ForwardTransaction(transaction *blockchain.Transaction) error {
+	if transaction == nil {
+		return fmt.Errorf("transaction is nil")
+	}
+
+	fmt.Printf("Forwarding transaction with hash %x to authority node at %s\n", transaction.Hash, n.AuthorityNodeAddress)
+	return nil
 }
