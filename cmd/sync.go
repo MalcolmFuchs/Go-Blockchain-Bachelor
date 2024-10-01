@@ -18,7 +18,15 @@ type SyncResponse struct {
 }
 
 func (n *Node) SyncWithAuthorityNode(authorityNodeAddress string) error {
-	lastBlock := n.Blockchain.Blocks[len(n.Blockchain.Blocks)-1]
+
+	var lastBlock *blockchain.Block
+
+	if len(n.Blockchain.Blocks) > 0 {
+		lastBlock = n.Blockchain.Blocks[len(n.Blockchain.Blocks)-1]
+	} else {
+		fmt.Println("Blockchain is empty")
+	}
+
 	syncRequest := SyncRequest{LastBlockHash: fmt.Sprintf("%x", lastBlock.Hash)}
 	requestBody, err := json.Marshal(syncRequest)
 	if err != nil {
@@ -36,7 +44,7 @@ func (n *Node) SyncWithAuthorityNode(authorityNodeAddress string) error {
 		return fmt.Errorf("failed to decode sync response: %v", err)
 	}
 
-  n.Blockchain.Blocks = append(n.Blockchain.Blocks, syncResponse.Blocks...)
+	n.Blockchain.Blocks = append(n.Blockchain.Blocks, syncResponse.Blocks...)
 
 	for _, block := range syncResponse.Blocks {
 		n.Blockchain.BlockMap[fmt.Sprintf("%x", block.Hash)] = block

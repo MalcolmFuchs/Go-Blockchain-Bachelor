@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/ed25519"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -78,8 +79,57 @@ func (n *Node) ForwardTransaction(transaction *blockchain.Transaction) error {
 }
 
 func (a *Node) Listen(addr string) {
-  http.ListenAndServe(addr, nil)
+	http.ListenAndServe(addr, nil)
 }
 
-// TODO: Build discovery function ()
-func (a *Node) AuthorityNodeDiscovery() {}
+// Give the ClientNOde the publicKey of AuthorityNode
+func (n *Node) AuthorityNodeDiscovery() {
+	resp, err := http.Get(fmt.Sprintf("http://%s/getPublicKey", n.AuthorityNodeAddress))
+	if err != nil {
+		fmt.Printf("Fehler beim Verbinden mit dem Authority Node: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Fehlerhafte Antwort vom Authority Node: %d\n", resp.StatusCode)
+		return
+	}
+
+	var result map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		fmt.Printf("Fehler beim Dekodieren der Antwort: %v\n", err)
+		return
+	}
+
+	publicKeyHex, ok := result["publicKey"]
+	if !ok {
+		fmt.Println("Public Key nicht in der Antwort gefunden")
+		return
+	}
+
+	publicKeyBytes, err := hex.DecodeString(publicKeyHex)
+	if err != nil {
+		fmt.Printf("Fehler beim Dekodieren des Public Keys: %v\n", err)
+		return
+	}
+
+	if len(publicKeyBytes) != ed25519.PublicKeySize {
+		fmt.Println("Ungültige Länge des Public Keys")
+		return
+	}
+
+	n.TrustedPublicKey = ed25519.PublicKey(publicKeyBytes)
+
+	fmt.Println("Authority Node Public Key erfolgreich erhalten und gespeichert")
+
+	// Sync Blockchain
+	err = n.SyncWithAuthorityNode(n.AuthorityNodeAddress)
+	if err != nil {
+		fmt.Printf("Fehler bei der Synchronisierung mit dem Authority Node: %v\n", err)
+		return
+	}
+
+	fmt.Println("Blockchain erfolgreich synchronisiert")
+}

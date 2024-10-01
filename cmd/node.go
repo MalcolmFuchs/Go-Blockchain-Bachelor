@@ -8,6 +8,7 @@ import (
 )
 
 var authorityAddress string
+var port string
 
 // TODO: Port hinzufügen per Parameter -p --port
 var nodeCmd = &cobra.Command{
@@ -19,20 +20,21 @@ var nodeCmd = &cobra.Command{
 			authorityPublicKey, authorityPrivateKey, _ := ed25519.GenerateKey(nil)
 			authorityNode := NewAuthorityNode(authorityPrivateKey, authorityPublicKey)
 			fmt.Println("Starting Authority Node...")
-      authorityNode.SetupAuthorityNodeRoutes()
-      authorityNode.Listen(":8080")
+			authorityNode.SetupAuthorityNodeRoutes()
+			authorityNode.Listen(":" + port)
 		} else {
-			clientPublicKey, clientPrivateKey, _ := ed25519.GenerateKey(nil)
-			node := NewNode(clientPrivateKey, clientPublicKey, authorityAddress)
+			_, clientPrivateKey, _ := ed25519.GenerateKey(nil)
+			node := NewNode(clientPrivateKey, nil, authorityAddress)
 			fmt.Printf("Starting Client Node... Connecting to Authority Node at %s\n", authorityAddress)
-      node.SetupNodeRoutes()
-      go node.AuthorityNodeDiscovery()
-      node.Listen(":8080")
+			node.SetupNodeRoutes()
+			go node.AuthorityNodeDiscovery()
+			node.Listen(":" + port)
 		}
 	},
 }
 
 func init() {
 	nodeCmd.Flags().StringVarP(&authorityAddress, "authority", "a", "", "IP address of the authority node")
+	nodeCmd.Flags().StringVarP(&port, "port", "p", "8080", "Port für den Node")
 	rootCmd.AddCommand(nodeCmd)
 }

@@ -63,13 +63,13 @@ func (authorityNode *AuthorityNode) CreateBlockHandler(w http.ResponseWriter, r 
 
 func (authorityNode *AuthorityNode) SyncHandler(w http.ResponseWriter, r *http.Request) {
 	var syncRequest SyncRequest
+	var syncBlocks []*blockchain.Block
+	syncStartIndex := -1
+
 	if err := json.NewDecoder(r.Body).Decode(&syncRequest); err != nil {
 		http.Error(w, "failed to decode sync request", http.StatusBadRequest)
 		return
 	}
-
-	var syncBlocks []*blockchain.Block
-	syncStartIndex := -1
 
 	for i, block := range authorityNode.Blockchain.Blocks {
 		if fmt.Sprintf("%x", block.Hash) == syncRequest.LastBlockHash {
@@ -94,11 +94,12 @@ func (authorityNode *AuthorityNode) SyncHandler(w http.ResponseWriter, r *http.R
 	w.Write(responseBody)
 }
 
-func (authorityNode *AuthorityNode) SetupAuthorityNodeRoutes() {
-  authorityNode.SetupNodeRoutes()
-	http.HandleFunc("/addTransaction", authorityNode.AddTransactionHandler)
-	http.HandleFunc("/createBlock", authorityNode.CreateBlockHandler)
-	http.HandleFunc("/sync", authorityNode.SyncHandler)
+func (a *AuthorityNode) SetupAuthorityNodeRoutes() {
+	a.SetupNodeRoutes()
+	http.HandleFunc("/addTransaction", a.AddTransactionHandler)
+	http.HandleFunc("/createBlock", a.CreateBlockHandler)
+	http.HandleFunc("/sync", a.SyncHandler)
+	http.HandleFunc("/getPublicKey", a.GetPublicKeyHandler)
 }
 
 func (node *Node) SetupNodeRoutes() {

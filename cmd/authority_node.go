@@ -3,28 +3,36 @@ package cmd
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"sync"
 	"time"
 
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
 )
 
 type AuthorityNode struct {
-	PrivateKey          ed25519.PrivateKey        // Private Key des Authority Nodes zur Signierung
-	PendingTransactions []*blockchain.Transaction // Liste der ausstehenden Transaktionen
-	*Node                                         // Referenz auf den allgemeinen Node
-	LastBlockTimestamp  int64                     // Zeitstempel des zuletzt erstellten Blocks
+	PrivateKey           ed25519.PrivateKey // Private Key des Authority Nodes zur Signierung
+	PublicKey            ed25519.PublicKey
+	PendingTransactions  []*blockchain.Transaction // Liste der ausstehenden Transaktionen
+	*Node                                          // Referenz auf den allgemeinen Node
+	LastBlockTimestamp   int64                     // Zeitstempel des zuletzt erstellten Blocks
+	BlockCreationTrigger chan struct{}
+	mutex                sync.Mutex
 }
 
 func NewAuthorityNode(privateKey ed25519.PrivateKey, publicKey ed25519.PublicKey) *AuthorityNode {
 	node := NewNode(privateKey, publicKey, "localhost:8080")
 
 	authorityNode := &AuthorityNode{
-		PrivateKey:          privateKey,
-		PendingTransactions: []*blockchain.Transaction{},
-		Node:                node,
-		LastBlockTimestamp:  time.Now().Unix(),
+		PrivateKey:           privateKey,
+		PublicKey:            publicKey,
+		PendingTransactions:  []*blockchain.Transaction{},
+		Node:                 node,
+		LastBlockTimestamp:   time.Now().Unix(),
+		BlockCreationTrigger: make(chan struct{}, 1),
 	}
 
 	// Create Genesis block
@@ -36,6 +44,18 @@ func NewAuthorityNode(privateKey ed25519.PrivateKey, publicKey ed25519.PublicKey
 }
 
 func (a *AuthorityNode) AddTransaction(transaction *blockchain.Transaction) {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	if len(a.PendingTransactions) >= 10 {
+		select {
+		case a.BlockCreationTrigger <- struct{}{}:
+			fmt.Println("BlockCreationTrigger was signalised")
+		default:
+			fmt.Println("BlockCreationTrigger been sent")
+		}
+	}
+
 	a.PendingTransactions = append(a.PendingTransactions, transaction)
 	fmt.Printf("Transaction %x added to pending transactions\n", transaction.Hash)
 }
@@ -83,6 +103,9 @@ func (a *AuthorityNode) AddBlockToBlockchain(block *blockchain.Block) error {
 }
 
 func (a *AuthorityNode) CheckAndCreateBlock() error {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
 	if len(a.PendingTransactions) >= 10 || (time.Now().Unix()-a.LastBlockTimestamp >= 300 && len(a.PendingTransactions) > 0) {
 		_, err := a.CreateBlock()
 		if err != nil {
@@ -111,5 +134,35 @@ func (a *AuthorityNode) ValidateBlock(block *blockchain.Block) error {
 	return nil
 }
 
-// TODO: Build function, that checks if conditions are met every 5th minute with sleep
-func (a *AuthorityNode) StartBlockGenerator() {}
+func (a *AuthorityNode) GetPublicKeyHandler(w http.ResponseWriter, r *http.Request) {
+	publicKeyHex := hex.EncodeToString(a.PublicKey)
+	response := map[string]string{
+		"publicKey": publicKeyHex,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// check if conditions are met every 5th minute with sleep
+func (a *AuthorityNode) StartBlockGenerator() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			err := a.CheckAndCreateBlock()
+			if err != nil {
+				fmt.Printf("Error creating a block: %v\n", err)
+			}
+		default:
+			if len(a.PendingTransactions) >= 10 {
+				err := a.CheckAndCreateBlock()
+				if err != nil {
+					fmt.Printf("Error creating a block: %v\n", err)
+				}
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}
+}
