@@ -63,22 +63,28 @@ func (authorityNode *AuthorityNode) CreateBlockHandler(w http.ResponseWriter, r 
 
 func (authorityNode *AuthorityNode) SyncHandler(w http.ResponseWriter, r *http.Request) {
 	var syncRequest SyncRequest
-	var syncBlocks []*blockchain.Block
-	syncStartIndex := -1
-
 	if err := json.NewDecoder(r.Body).Decode(&syncRequest); err != nil {
 		http.Error(w, "failed to decode sync request", http.StatusBadRequest)
 		return
 	}
 
-	for i, block := range authorityNode.Blockchain.Blocks {
-		if fmt.Sprintf("%x", block.Hash) == syncRequest.LastBlockHash {
-			syncStartIndex = i + 1
-			break
+	var syncBlocks []*blockchain.Block
+	if syncRequest.LastBlockHash == "" {
+		// Client hat keine Blöcke, sende die gesamte Blockchain
+		syncBlocks = authorityNode.Blockchain.Blocks
+	} else {
+		// Suche nach dem Block mit dem gegebenen Hash
+		syncStartIndex := -1
+		for i, block := range authorityNode.Blockchain.Blocks {
+			if fmt.Sprintf("%x", block.Hash) == syncRequest.LastBlockHash {
+				syncStartIndex = i + 1
+				break
+			}
 		}
-	}
-
-	if syncStartIndex != -1 && syncStartIndex < len(authorityNode.Blockchain.Blocks) {
+		if syncStartIndex == -1 {
+			http.Error(w, "block not found", http.StatusNotFound)
+			return
+		}
 		syncBlocks = authorityNode.Blockchain.Blocks[syncStartIndex:]
 	}
 

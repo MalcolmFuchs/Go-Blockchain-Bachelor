@@ -8,7 +8,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "ega-blockchain",
+	Use:   "go-blockchain-bachelor",
 	Short: "EGA Blockchain Application",
 	Long:  `EGA Blockchain is a distributed application to manage patient records using blockchain technology.`,
 }

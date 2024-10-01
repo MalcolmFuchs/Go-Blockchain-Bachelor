@@ -19,15 +19,16 @@ type SyncResponse struct {
 
 func (n *Node) SyncWithAuthorityNode(authorityNodeAddress string) error {
 
-	var lastBlock *blockchain.Block
-
+	var lastBlockHash string
 	if len(n.Blockchain.Blocks) > 0 {
-		lastBlock = n.Blockchain.Blocks[len(n.Blockchain.Blocks)-1]
+		lastBlock := n.Blockchain.Blocks[len(n.Blockchain.Blocks)-1]
+		lastBlockHash = fmt.Sprintf("%x", lastBlock.Hash)
 	} else {
 		fmt.Println("Blockchain is empty")
+		lastBlockHash = ""
 	}
 
-	syncRequest := SyncRequest{LastBlockHash: fmt.Sprintf("%x", lastBlock.Hash)}
+	syncRequest := SyncRequest{LastBlockHash: lastBlockHash}
 	requestBody, err := json.Marshal(syncRequest)
 	if err != nil {
 		return fmt.Errorf("failed to serialize sync request: %v", err)

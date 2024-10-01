@@ -8,19 +8,19 @@ import (
 )
 
 type Transaction struct {
-	Hash      []byte
-	Data      []byte
-	Doctor    []byte
-	Patient   []byte
-	Signature []byte
-	Key       []byte // AES-Schlüssel, verschlüsselt mit dem Public Key des Patienten
+	Hash      []byte `json:"hash,omitempty"`
+	Data      string `json:"data"`
+	Doctor    string `json:"doctor"`
+	Patient   string `json:"patient"`
+	Signature []byte `json:"signature,omitempty"`
+	Key       []byte `json:"key,omitempty"`
 }
 
 func NewTransaction(data, doctor, patient, key []byte) (*Transaction, error) {
 	tx := &Transaction{
-		Data:    data,
-		Doctor:  doctor,
-		Patient: patient,
+		Data:    string(data),
+		Doctor:  string(doctor),
+		Patient: string(patient),
 		Key:     key,
 	}
 
