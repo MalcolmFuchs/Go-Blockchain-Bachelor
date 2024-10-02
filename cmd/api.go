@@ -9,9 +9,16 @@ import (
 )
 
 func (node *Node) GetBlockchainHandler(w http.ResponseWriter, r *http.Request) {
-	blockchainData, err := node.Blockchain.GetBlockchainData()
+	// Stelle sicher, dass die Blockchain vorhanden ist
+	if node.Blockchain == nil {
+		http.Error(w, "Blockchain not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	// Serialisiere die Blockchain
+	blockchainData, err := json.MarshalIndent(node.Blockchain.Blocks, "", "  ")
 	if err != nil {
-		http.Error(w, "failed to get blockchain data", http.StatusInternalServerError)
+		http.Error(w, "Failed to serialize blockchain", http.StatusInternalServerError)
 		return
 	}
 

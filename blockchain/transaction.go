@@ -9,18 +9,22 @@ import (
 
 type Transaction struct {
 	Hash      []byte `json:"hash,omitempty"`
-	Data      string `json:"data"`
+	Type      string `json:"type"`
+	Notes     string `json:"notes"`
+	Results   string `json:"results"`
 	Doctor    string `json:"doctor"`
 	Patient   string `json:"patient"`
 	Signature []byte `json:"signature,omitempty"`
 	Key       []byte `json:"key,omitempty"`
 }
 
-func NewTransaction(data, doctor, patient, key []byte) (*Transaction, error) {
+func NewTransaction(txType, notes, results, doctor, patient string, key []byte) (*Transaction, error) {
 	tx := &Transaction{
-		Data:    string(data),
-		Doctor:  string(doctor),
-		Patient: string(patient),
+		Type:    txType,
+		Notes:   notes,
+		Results: results,
+		Doctor:  doctor,
+		Patient: patient,
 		Key:     key,
 	}
 
@@ -40,7 +44,7 @@ func (t *Transaction) CalculateHash() ([]byte, error) {
 	}
 
 	hash := sha256.Sum256(transactionBytes)
-	return hash[:], nil // Rückgabe als Slice []byte
+	return hash[:], nil
 }
 
 func SignTransaction(tx *Transaction, privateKey []byte) ([]byte, error) {
@@ -87,9 +91,10 @@ func DeserializeTransaction(data []byte) (*Transaction, error) {
 
 func (t *Transaction) PrintTransaction() {
 	fmt.Printf("Transaction Hash: %x\n", t.Hash)
-	fmt.Printf("Doctor: %x\n", t.Doctor)
-	fmt.Printf("Patient: %x\n", t.Patient)
-	fmt.Printf("Encrypted Data: %x\n", t.Data)
-	fmt.Printf("Encrypted AES Key: %x\n", t.Key)
+	fmt.Printf("Doctor: %s\n", t.Doctor)
+	fmt.Printf("Patient: %s\n", t.Patient)
+	fmt.Printf("Type: %s\n", t.Type)
+	fmt.Printf("Notes: %s\n", t.Notes)
+	fmt.Printf("Results: %s\n", t.Results)
 	fmt.Printf("Signature: %x\n", t.Signature)
 }
