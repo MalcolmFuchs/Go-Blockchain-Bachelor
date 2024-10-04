@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"crypto/ed25519"
 	"fmt"
 )
 
@@ -15,12 +14,7 @@ func NewTransactionPool() *TransactionPool {
 	}
 }
 
-func (tp *TransactionPool) AddTransactionToPool(transaction *Transaction, doctorPublicKey ed25519.PublicKey) error {
-
-	if !ed25519.Verify(doctorPublicKey, transaction.Hash, transaction.Signature) {
-		fmt.Printf("Signature verification failed. Doctor's Public Key: %x, Hash: %x, Signature: %x\n", doctorPublicKey, transaction.Hash, transaction.Signature)
-		return fmt.Errorf("invalid transaction signature for transaction hash %x", transaction.Hash)
-	}
+func (tp *TransactionPool) AddTransactionToPool(transaction *Transaction) error {
 
 	transactionHash := fmt.Sprintf("%x", transaction.Hash)
 	if _, exists := tp.Transactions[transactionHash]; exists {

@@ -20,14 +20,19 @@ type Transaction struct {
 	Key       []byte `json:"key"`       // AES-Schlüssel, verschlüsselt mit dem Public Key des Patienten
 }
 
-func NewTransaction(txType, notes, results, doctorPublicKeyHex, patientPublicKeyHex string, key []byte) (*Transaction, error) {
-	// Wandelt Doctor- und Patient-Public-Key von Hex-String zu []byte um
+func NewTransaction(txType, notes, results, doctorPublicKeyHex, patientPublicKeyHex string, keyHex string) (*Transaction, error) {
+	// Wandelt Doctor- und Patient-Public-Key und den Key von Hex-String zu []byte um
 	doctor, err := hex.DecodeString(doctorPublicKeyHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode doctor public key: %v", err)
 	}
 
 	patient, err := hex.DecodeString(patientPublicKeyHex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode patient public key: %v", err)
+	}
+
+	key, err := hex.DecodeString(keyHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode patient public key: %v", err)
 	}

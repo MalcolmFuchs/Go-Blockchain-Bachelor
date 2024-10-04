@@ -81,63 +81,71 @@ func GenerateECDSAKeys() (*ecdsa.PrivateKey, error) {
 
 // Helper function to serialize a public key by concatenating X and Y coordinates
 func serializePublicKey(publicKey *ecdsa.PublicKey) []byte {
-    xBytes := publicKey.X.Bytes()
-    yBytes := publicKey.Y.Bytes()
-    return append(xBytes, yBytes...)
+	xBytes := publicKey.X.Bytes()
+	yBytes := publicKey.Y.Bytes()
+	return append(xBytes, yBytes...)
 }
 
 // EncryptAESKeyWithPublicKey encrypts an AES key using the recipient's public key via ECDH
 func EncryptAESKeyWithPublicKey(aesKey []byte, publicKey *ecdsa.PublicKey) ([]byte, error) {
-    // Create an ECDH curve object
-    curve := ecdh.P256()
+	// Create an ECDH curve object
+	curve := ecdh.P256()
 
-    // Serialize the ECDSA public key into a single byte slice (concatenating X and Y coordinates)
-    recipientPubKeyBytes := serializePublicKey(publicKey)
+	// Serialize the ECDSA public key into a single byte slice (concatenating X and Y coordinates)
+	recipientPubKeyBytes := serializePublicKey(publicKey)
 
-    // Convert the serialized ECDSA public key to the ECDH public key format
-    recipientPubKey, err := curve.NewPublicKey(recipientPubKeyBytes)
-    if err != nil {
-        return nil, fmt.Errorf("failed to convert public key: %v", err)
-    }
+	// Convert the serialized ECDSA public key to the ECDH public key format
+	recipientPubKey, err := curve.NewPublicKey(recipientPubKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert public key: %v", err)
+	}
 
-    // Generate an ephemeral private key for ECDH
-    ephemeralPrivKey, err := curve.GenerateKey(rand.Reader)
-    if err != nil {
-        return nil, fmt.Errorf("failed to generate ephemeral private key: %v", err)
-    }
+	// Generate an ephemeral private key for ECDH
+	ephemeralPrivKey, err := curve.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate ephemeral private key: %v", err)
+	}
 
-    // Derive a shared secret using ECDH with the recipient's public key and ephemeral private key
-    sharedSecret, err := ephemeralPrivKey.ECDH(recipientPubKey)
-    if err != nil {
-        return nil, fmt.Errorf("failed to derive shared secret: %v", err)
-    }
+	// Derive a shared secret using ECDH with the recipient's public key and ephemeral private key
+	sharedSecret, err := ephemeralPrivKey.ECDH(recipientPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive shared secret: %v", err)
+	}
 
-    // Hash the shared secret using SHA-256 to produce the AES key
-    sharedSecretHash := sha256.Sum256(sharedSecret)
+	// Hash the shared secret using SHA-256 to produce the AES key
+	sharedSecretHash := sha256.Sum256(sharedSecret)
 
-    // Use the shared secret hash as the AES key
-    block, err := aes.NewCipher(sharedSecretHash[:])
-    if err != nil {
-        return nil, fmt.Errorf("failed to create AES cipher: %v", err)
-    }
+	// Use the shared secret hash as the AES key
+	block, err := aes.NewCipher(sharedSecretHash[:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AES cipher: %v", err)
+	}
 
-    aesGCM, err := cipher.NewGCM(block)
-    if err != nil {
-        return nil, fmt.Errorf("failed to create AES-GCM: %v", err)
-    }
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AES-GCM: %v", err)
+	}
 
-    nonce := make([]byte, aesGCM.NonceSize())
-    if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-        return nil, fmt.Errorf("failed to generate nonce: %v", err)
-    }
+	nonce := make([]byte, aesGCM.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("failed to generate nonce: %v", err)
+	}
 
-    // Encrypt the AES key
-    encryptedAESKey := aesGCM.Seal(nil, nonce, aesKey, nil)
+	// Encrypt the AES key
+	encryptedAESKey := aesGCM.Seal(nil, nonce, aesKey, nil)
 
-    // Include the ephemeral public key (in bytes) for the recipient to derive the shared secret later
-    ephemeralPubKeyBytes := ephemeralPrivKey.PublicKey().Bytes()
-    encryptedData := append(ephemeralPubKeyBytes, nonce...)
-    encryptedData = append(encryptedData, encryptedAESKey...)
+	// Include the ephemeral public key (in bytes) for the recipient to derive the shared secret later
+	ephemeralPubKeyBytes := ephemeralPrivKey.PublicKey().Bytes()
+	encryptedData := append(ephemeralPubKeyBytes, nonce...)
+	encryptedData = append(encryptedData, encryptedAESKey...)
 
-    return encryptedData, nil
+	return encryptedData, nil
+}
+
+func GenerateAESKey() ([]byte, error) {
+	key := make([]byte, 32) // 256 Bits
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		return nil, err
+	}
+	return key, nil
 }

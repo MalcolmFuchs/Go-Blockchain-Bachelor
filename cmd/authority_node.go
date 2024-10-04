@@ -28,30 +28,28 @@ func NewAuthorityNode(privateKey ed25519.PrivateKey, publicKey ed25519.PublicKey
 	authorityNode := &AuthorityNode{
 		PrivateKey:           privateKey,
 		PublicKey:            publicKey,
-		TransactionPool:      blockchain.NewTransactionPool(), // Initialisiere den TransactionPool
+		TransactionPool:      blockchain.NewTransactionPool(),
 		Node:                 node,
 		LastBlockTimestamp:   time.Now().Unix(),
-		BlockCreationTrigger: make(chan struct{}), // Initialisiere den Trigger-Kanal
-		mutex:                sync.Mutex{},        // Initialisiere den Mutex
+		BlockCreationTrigger: make(chan struct{}),
+		mutex:                sync.Mutex{},
 	}
 
 	// Erstelle den Genesis-Block
 	authorityNode.Blockchain = blockchain.NewBlockchain(privateKey)
 
-	// Starte einen Go-Routine zur Blockerstellung
 	go authorityNode.StartBlockGenerator()
 
 	return authorityNode
 }
 
-func (a *AuthorityNode) AddTransaction(transaction *blockchain.Transaction) {
+func (a *AuthorityNode) AddTransaction(transaction *blockchain.Transaction) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 
 	// Füge die Transaktion zum TransactionPool hinzu
-	if err := a.TransactionPool.AddTransactionToPool(transaction, a.PublicKey); err != nil {
-		fmt.Printf("Error adding transaction to pool: %v\n", err)
-		return
+	if err := a.TransactionPool.AddTransactionToPool(transaction /*a.PublicKey */); err != nil {
+		return fmt.Errorf("error adding transaction to pool: %v", err)
 	}
 
 	// Überprüfe, ob die Anzahl der Transaktionen im Pool den Schwellenwert für die Blockerstellung erreicht
@@ -65,6 +63,7 @@ func (a *AuthorityNode) AddTransaction(transaction *blockchain.Transaction) {
 	}
 
 	fmt.Printf("Transaction %x added to transaction pool\n", transaction.Hash)
+	return nil
 }
 
 func (a *AuthorityNode) CreateBlock() (*blockchain.Block, error) {

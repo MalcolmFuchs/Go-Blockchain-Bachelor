@@ -35,7 +35,7 @@ func (authorityNode *AuthorityNode) AddTransactionHandler(w http.ResponseWriter,
 		Results string `json:"results"`
 		Doctor  string `json:"doctor"`
 		Patient string `json:"patient"`
-		Key     []byte `json:"key"`
+		Key     string `json:"key"`
 	}
 
 	// Dekodiere die Transaktionsdaten aus der Anfrage
@@ -67,10 +67,13 @@ func (authorityNode *AuthorityNode) AddTransactionHandler(w http.ResponseWriter,
 	}
 	transaction.Signature = signature
 
-	transaction.Signature = signature
-
 	// Füge die Transaktion zum Transaktionspool hinzu
-	if err := authorityNode.TransactionPool.AddTransactionToPool(transaction, authorityNode.PublicKey); err != nil {
+	// if err := authorityNode.TransactionPool.AddTransactionToPool(transaction, authorityNode.PublicKey); err != nil {
+	// 	http.Error(w, fmt.Sprintf("failed to add transaction to pool: %v", err), http.StatusInternalServerError)
+	// 	return
+	// }
+
+	if err := authorityNode.AddTransaction(transaction); err != nil {
 		http.Error(w, fmt.Sprintf("failed to add transaction to pool: %v", err), http.StatusInternalServerError)
 		return
 	}

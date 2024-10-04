@@ -53,21 +53,23 @@ Dieses Dokument beschreibt die Implementierung und Verwendung der `Go-Blockchain
 - **Body**:
   ```json
   {
-    "type": "Checkup",
-    "notes": "Patient in good health.",
-    "results": "All tests normal.",
-    "doctor": "Arzt A",
-    "patient": "Patient B"
+  "type": "Blood Test",
+  "notes": "Routine blood test for cholesterol levels.",
+  "results": "Cholesterol: 180 mg/dL",
+  "doctor": "4f8b54c26d30dff4b932e769d1a9b0e7130c1d8c3c7209ecfa61ff01e8f4f07a",
+  "patient": "3c5a2bcd98216d66dbac8b86e5f8d8a9c5405a98df27e9ed1e9fc74a91d8b5e4",
+  "key": "d3c06ff6d01328abf346f35b4c6a25c45f92d06c3b4f48d40a7e4e06b1d29bb6"
   }
   ```
 - **Beispiel mit `curl`**:
   ```bash
   curl -X POST -H "Content-Type: application/json" -d '{
-    "type": "Checkup",
-    "notes": "Patient in good health.",
-    "results": "All tests normal.",
-    "doctor": "Arzt A",
-    "patient": "Patient B"
+  "type": "Blood Test",
+  "notes": "Routine blood test for cholesterol levels.",
+  "results": "Cholesterol: 180 mg/dL",
+  "doctor": "4f8b54c26d30dff4b932e769d1a9b0e7130c1d8c3c7209ecfa61ff01e8f4f07a",
+  "patient": "3c5a2bcd98216d66dbac8b86e5f8d8a9c5405a98df27e9ed1e9fc74a91d8b5e4",
+  "key": "d3c06ff6d01328abf346f35b4c6a25c45f92d06c3b4f48d40a7e4e06b1d29bb6"
   }' http://localhost:8080/addTransaction
   ```
 
