@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
@@ -33,7 +34,7 @@ func NewTransaction(txType, notes, results, doctorPublicKeyHex, patientPublicKey
 
 	key, err := hex.DecodeString(keyHex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode patient public key: %v", err)
+		return nil, fmt.Errorf("failed to decode key: %v", err)
 	}
 
 	tx := &Transaction{
@@ -56,8 +57,12 @@ func NewTransaction(txType, notes, results, doctorPublicKeyHex, patientPublicKey
 }
 
 func (t *Transaction) CalculateHash() ([]byte, error) {
-	// Serialisiere die Transaktion zu JSON, um den Hash daraus zu berechnen
-	transactionBytes, err := json.Marshal(t)
+	// Erstelle eine temporäre Kopie der Transaktion ohne Hash und Signatur
+	tempTx := *t
+	tempTx.Hash = nil
+	tempTx.Signature = nil
+
+	transactionBytes, err := json.Marshal(tempTx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize transaction: %v", err)
 	}
@@ -66,40 +71,29 @@ func (t *Transaction) CalculateHash() ([]byte, error) {
 	return hash[:], nil // Rückgabe des Hashes als Slice []byte
 }
 
-func SignTransaction(tx *Transaction, privateKey []byte) ([]byte, error) {
-	transactionBytes, err := json.Marshal(tx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize transaction: %v", err)
-	}
-
-	hash := sha256.Sum256(transactionBytes)
-	signature := ed25519.Sign(privateKey, hash[:])
+func SignTransaction(tx *Transaction, privateKey ed25519.PrivateKey) ([]byte, error) {
+	// Signiere den bereits berechneten Hash der Transaktion
+	signature := ed25519.Sign(privateKey, tx.Hash)
 	tx.Signature = signature
-
 	return signature, nil
 }
 
-// func ValidateTransaction(tx *Transaction, publicKey []byte) error {
-// 	// Berechne den Hash der Transaktion erneut
-// 	hash, err := tx.CalculateHash()
-// 	if err != nil {
-// 		return fmt.Errorf("failed to calculate transaction hash: %v", err)
-// 	}
+func ValidateTransaction(tx *Transaction, publicKey ed25519.PublicKey) error {
+	// Berechne den Hash der Transaktion erneut
+	hash, err := tx.CalculateHash()
+	if err != nil {
+		return fmt.Errorf("failed to calculate transaction hash: %v", err)
+	}
 
-// 	// Überprüfe, ob der Hash der Transaktion leer ist
-// 	if len(hash) == 0 {
-// 		return fmt.Errorf("transaction hash is empty")
-// 	}
+	// Überprüfe, ob der berechnete Hash mit dem gespeicherten Hash der Transaktion übereinstimmt
+	if !bytes.Equal(hash, tx.Hash) {
+		return fmt.Errorf("hash mismatch: calculated %x, stored %x", hash, tx.Hash)
+	}
 
-// 	// Überprüfe, ob der berechnete Hash mit dem gespeicherten Hash der Transaktion übereinstimmt
-// 	if !bytes.Equal(hash, tx.Hash) {
-// 		return fmt.Errorf("hash mismatch: calculated %x, stored %x", hash, tx.Hash)
-// 	}
+	// Verifiziere die Signatur mit dem Public Key
+	if !ed25519.Verify(publicKey, tx.Hash, tx.Signature) {
+		return fmt.Errorf("invalid signature for transaction hash %x", tx.Hash)
+	}
 
-// 	// Verifiziere die Signatur mit dem Public Key
-// 	if !ed25519.Verify(publicKey, tx.Hash, tx.Signature) {
-// 		return fmt.Errorf("invalid signature for transaction hash %x", tx.Hash)
-// 	}
-
-// 	return nil
-// }
+	return nil
+}

@@ -49,7 +49,7 @@ func (a *AuthorityNode) AddTransaction(transaction *blockchain.Transaction) erro
 	defer a.mutex.Unlock()
 
 	// Füge die Transaktion zum TransactionPool hinzu
-	if err := a.TransactionPool.AddTransactionToPool(transaction /*a.PublicKey */); err != nil {
+	if err := a.TransactionPool.AddTransactionToPool(transaction); err != nil {
 		return fmt.Errorf("error adding transaction to pool: %v", err)
 	}
 
@@ -75,6 +75,14 @@ func (a *AuthorityNode) CreateBlock() (*blockchain.Block, error) {
 	pendingTransactions := a.TransactionPool.GetTransactionsFromPool()
 	if len(pendingTransactions) < 1 {
 		return nil, fmt.Errorf("not enough transactions to create a new block")
+	}
+
+	// Validierung jeder Transaktion vor dem Hinzufügen zum Block
+	for _, tx := range pendingTransactions {
+		err := blockchain.ValidateTransaction(tx, a.PublicKey)
+		if err != nil {
+			return nil, fmt.Errorf("invalid transaction in pool: %v", err)
+		}
 	}
 
 	// Erstelle einen neuen Block mit den Transaktionen aus dem Pool
@@ -143,7 +151,7 @@ func (a *AuthorityNode) ValidateBlock(block *blockchain.Block) error {
 	}
 
 	// Überprüfe, ob die Signatur gültig ist
-	if !ed25519.Verify(a.Node.TrustedPublicKey, block.Hash, block.Signature) {
+	if !ed25519.Verify(a.PublicKey, block.Hash, block.Signature) {
 		return fmt.Errorf("invalid signature for block ID %d", block.ID)
 	}
 
