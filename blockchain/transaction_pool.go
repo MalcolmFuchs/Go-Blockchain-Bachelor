@@ -47,11 +47,3 @@ func (tp *TransactionPool) GetTransactionsFromPool() []*Transaction {
 
 	return transactions
 }
-
-func (tp *TransactionPool) PrintPool() {
-	fmt.Printf("Transaction Pool: %d transactions\n", len(tp.Transactions))
-	for hash, transaction := range tp.Transactions {
-		fmt.Printf("Transaction Hash: %s\n", hash)
-		transaction.PrintTransaction()
-	}
-}

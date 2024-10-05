@@ -22,6 +22,7 @@ type AuthorityNode struct {
 	mutex                sync.Mutex                  // Mutex zur Synchronisierung der Transaktionsverarbeitung
 }
 
+// Erstellt einen neuen AuthorityNode
 func NewAuthorityNode(privateKey ed25519.PrivateKey, publicKey ed25519.PublicKey) *AuthorityNode {
 	node := NewNode(privateKey, publicKey, "localhost:8080")
 
@@ -62,7 +63,6 @@ func (a *AuthorityNode) AddTransaction(transaction *blockchain.Transaction) erro
 		}
 	}
 
-	fmt.Printf("Transaction %x added to transaction pool\n", transaction.Hash)
 	return nil
 }
 
@@ -121,24 +121,6 @@ func (a *AuthorityNode) AddBlockToBlockchain(block *blockchain.Block) error {
 	a.LastBlockTimestamp = block.Timestamp
 
 	fmt.Printf("Block with ID %d added to the blockchain\n", block.ID)
-	return nil
-}
-
-func (a *AuthorityNode) CheckAndCreateBlock() error {
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
-
-	// Anzahl der ausstehenden Transaktionen im Pool überprüfen
-	pendingTransactions := a.TransactionPool.GetTransactionsFromPool()
-
-	// Bedingungen zur Blockerstellung prüfen: entweder mindestens 5 Transaktionen oder ein Zeitintervall von 300 Sekunden ist vergangen
-	if len(pendingTransactions) >= 5 || (time.Now().Unix()-a.LastBlockTimestamp >= 300 && len(pendingTransactions) > 0) {
-		_, err := a.CreateBlock()
-		if err != nil {
-			return fmt.Errorf("failed to create block: %v", err)
-		}
-	}
-
 	return nil
 }
 

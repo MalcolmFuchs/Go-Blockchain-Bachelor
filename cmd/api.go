@@ -59,6 +59,11 @@ func (authorityNode *AuthorityNode) AddTransactionHandler(w http.ResponseWriter,
 		return
 	}
 
+	// if err := blockchain.ValidateTransaction(transaction, authorityNode.PrivateKey); err != nil {
+	// 	http.Error(w, fmt.Sprintf("failed to add transaction to pool: %v", err), http.StatusInternalServerError)
+	// 	return
+	// }
+
 	// Signiere die Transaktion mit dem Private Key des Authority Nodes
 	signature, err := blockchain.SignTransaction(transaction, authorityNode.PrivateKey)
 	if err != nil {
@@ -66,12 +71,6 @@ func (authorityNode *AuthorityNode) AddTransactionHandler(w http.ResponseWriter,
 		return
 	}
 	transaction.Signature = signature
-
-	// Füge die Transaktion zum Transaktionspool hinzu
-	// if err := authorityNode.TransactionPool.AddTransactionToPool(transaction, authorityNode.PublicKey); err != nil {
-	// 	http.Error(w, fmt.Sprintf("failed to add transaction to pool: %v", err), http.StatusInternalServerError)
-	// 	return
-	// }
 
 	if err := authorityNode.AddTransaction(transaction); err != nil {
 		http.Error(w, fmt.Sprintf("failed to add transaction to pool: %v", err), http.StatusInternalServerError)
