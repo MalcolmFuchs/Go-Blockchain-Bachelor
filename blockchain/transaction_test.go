@@ -67,7 +67,7 @@ func TestValidateTransaction(t *testing.T) {
 	}
 
 	// Ändere eine Transaktionseigenschaft, um die Validierung zu fehlschlagen
-	tx.Notes = "Tampered notes"
+	tx.EncryptedData.Ciphertext = []byte("tampered data")
 
 	err = ValidateTransaction(tx, authorityPub)
 	if err == nil {

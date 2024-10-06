@@ -60,12 +60,11 @@ func (authorityNode *AuthorityNode) AddTransactionHandler(w http.ResponseWriter,
 	}
 
 	// Signiere die Transaktion mit dem Private Key des Authority Nodes
-	signature, err := blockchain.SignTransaction(transaction, authorityNode.PrivateKey)
+	_, err = blockchain.SignTransaction(transaction, authorityNode.PrivateKey)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to sign transaction: %v", err), http.StatusInternalServerError)
 		return
 	}
-	transaction.Signature = signature
 
 	// Validierung der Transaktion mit dem Public Key des Authority Nodes
 	err = blockchain.ValidateTransaction(transaction, authorityNode.PublicKey)

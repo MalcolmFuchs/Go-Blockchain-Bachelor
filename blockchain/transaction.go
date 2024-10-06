@@ -7,17 +7,32 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+
+	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/utils"
 )
 
 type Transaction struct {
-	Hash      []byte `json:"hash"`      // Der berechnete Hash der Transaktion
-	Type      string `json:"type"`      // Typ der Transaktion (z.B. Checkup, Surgery)
-	Notes     string `json:"notes"`     // Notizen zur Transaktion
-	Results   string `json:"results"`   // Ergebnisse (z.B. Testergebnisse)
-	Doctor    []byte `json:"doctor"`    // Public Key des Arztes als []byte
-	Patient   []byte `json:"patient"`   // Public Key des Patienten als []byte
-	Signature []byte `json:"signature"` // Signatur der Transaktion
-	Key       []byte `json:"key"`       // AES-Schlüssel, verschlüsselt mit dem Public Key des Patienten
+	Hash          []byte              `json:"hash"`
+	EncryptedData utils.EncryptedData `json:"encryptedData"`
+	Doctor        []byte              `json:"doctor"`
+	Patient       []byte              `json:"patient"`
+	Signature     []byte              `json:"signature"`
+	Key           []byte              `json:"key"`
+}
+
+type TransactionData struct {
+	Type    string `json:"type"`
+	Notes   string `json:"notes"`
+	Results string `json:"results"`
+}
+
+func PrepareTransactionData(txType, notes, results string) ([]byte, error) {
+	data := TransactionData{
+		Type:    txType,
+		Notes:   notes,
+		Results: results,
+	}
+	return json.Marshal(data)
 }
 
 func NewTransaction(txType, notes, results, doctorPublicKeyHex, patientPublicKeyHex string, keyHex string) (*Transaction, error) {
@@ -37,13 +52,29 @@ func NewTransaction(txType, notes, results, doctorPublicKeyHex, patientPublicKey
 		return nil, fmt.Errorf("failed to decode key: %v", err)
 	}
 
+	// Bereite die Transaktionsdaten vor
+	plaintext, err := PrepareTransactionData(txType, notes, results)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction data: %v", err)
+	}
+
+	// Verschlüssele die Daten mit AES-GCM
+	encryptedData, err := utils.EncryptData(plaintext, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt transaction data: %v", err)
+	}
+
+	// Verschlüssele den AES-Schlüssel mit dem öffentlichen Schlüssel des Patienten
+	encryptedAESKey, err := utils.EncryptAESKeyWithPublicKey(key, patient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt AES key: %v", err)
+	}
+
 	tx := &Transaction{
-		Type:    txType,
-		Notes:   notes,
-		Results: results,
-		Doctor:  doctor,
-		Patient: patient,
-		Key:     key,
+		Doctor:        doctor,
+		Patient:       patient,
+		EncryptedData: encryptedData,
+		Key:           encryptedAESKey, // Der verschlüsselte AES-Schlüssel wird im Key-Feld gespeichert
 	}
 
 	// Berechne den Hash der Transaktion
