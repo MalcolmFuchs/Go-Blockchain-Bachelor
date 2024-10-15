@@ -11,32 +11,28 @@ import (
 )
 
 func (a *AuthorityNode) GetPatientTransactionsHandler(w http.ResponseWriter, r *http.Request) {
+	var transactions []*blockchain.Transaction
+
 	patientID := r.URL.Query().Get("patientID")
 	if patientID == "" {
 		http.Error(w, "patientID is required", http.StatusBadRequest)
 		return
 	}
 
-	// Versuch, die Standard Base64-Dekodierung zu verwenden
-	decodedPatientID, err := base64.StdEncoding.DecodeString(patientID)
+	// Verwende URL-sichere Base64-Dekodierung
+	decodedPatientID, err := base64.URLEncoding.DecodeString(patientID)
 	if err != nil {
-		// Wenn die Standard-Dekodierung fehlschlägt, versuche die URL-sichere Dekodierung
-		fmt.Println("Standard Base64-Dekodierung fehlgeschlagen:", err)
-		decodedPatientID, err = base64.URLEncoding.DecodeString(patientID)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to decode patientID: %v", err), http.StatusBadRequest)
-			return
-		}
+		http.Error(w, fmt.Sprintf("failed to decode patientID: %v", err), http.StatusBadRequest)
+		return
 	}
 
-	patientHash := base64.StdEncoding.EncodeToString(decodedPatientID)
+	patientHash := base64.URLEncoding.EncodeToString(decodedPatientID)
 	patientData, exists := a.Patients[patientHash]
 	if !exists {
 		http.Error(w, "patient not found", http.StatusNotFound)
 		return
 	}
 
-	var transactions []*blockchain.Transaction
 	for _, tx := range patientData.Transactions {
 		transactions = append(transactions, tx)
 	}
@@ -81,16 +77,16 @@ func (authorityNode *AuthorityNode) AddTransactionHandler(w http.ResponseWriter,
 		return
 	}
 
-  if err != nil {
-    http.Error(w, fmt.Sprintf("failed to create transaction: %v", err), http.StatusInternalServerError)
-    return
-  }
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to create transaction: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-  // Füge die validierte und signierte Transaktion zum Pool hinzu
-  if err := authorityNode.AddTransaction(&transaction); err != nil {
-    http.Error(w, fmt.Sprintf("failed to add transaction to pool: %v", err), http.StatusInternalServerError)
-    return
-  }
+	// Füge die validierte und signierte Transaktion zum Pool hinzu
+	if err := authorityNode.AddTransaction(&transaction); err != nil {
+		http.Error(w, fmt.Sprintf("failed to add transaction to pool: %v", err), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 
 	w.Write([]byte("Transaction added to pool successfully"))

@@ -119,7 +119,8 @@ func (a *AuthorityNode) CreateBlock() (*blockchain.Block, error) {
 	}
 
 	for _, tx := range newBlock.Transactions {
-		patientHash := base64.StdEncoding.EncodeToString(tx.Patient)
+		//patientHash := base64.StdEncoding.EncodeToString(tx.Patient)
+		patientHash := base64.URLEncoding.EncodeToString(tx.Patient)
 
 		if _, exists := a.Patients[patientHash]; !exists {
 			a.Patients[patientHash] = PatientData{
