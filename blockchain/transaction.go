@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/utils"
 )
@@ -24,16 +25,18 @@ type Signature struct {
 }
 
 type TransactionData struct {
-	Type    string `json:"type"`
-	Notes   string `json:"notes"`
-	Results string `json:"results"`
+	Type      string `json:"type"`
+	Notes     string `json:"notes"`
+	Results   string `json:"results"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 func PrepareTransactionData(txType, notes, results string) ([]byte, error) {
 	data := TransactionData{
-		Type:    txType,
-		Notes:   notes,
-		Results: results,
+		Type:      txType,
+		Notes:     notes,
+		Results:   results,
+		Timestamp: time.Now().Unix(),
 	}
 	return json.Marshal(data)
 }
@@ -78,13 +81,13 @@ func NewTransaction(txType, notes, results string, senderPrivKey *ecdsa.PrivateK
 	tx.Hash = hash
 
 	// Berechne die Signatur der Transaktion
-  err = tx.SignTransaction(senderPrivKey)
+	err = tx.SignTransaction(senderPrivKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate transaction signature: %v", err)
 	}
 	tx.Hash = hash
 
-  err = tx.ValidateTransaction(&senderPrivKey.PublicKey)
+	err = tx.ValidateTransaction(&senderPrivKey.PublicKey)
 
 	return tx, nil
 }
@@ -116,12 +119,12 @@ func (t *Transaction) SignTransaction(privateKey *ecdsa.PrivateKey) error {
 		S: s,
 	}
 
-  fmt.Printf("%v", t.Signature)
+	fmt.Printf("%v", t.Signature)
 
 	return nil
 }
 
-func(t *Transaction) ValidateTransaction(publicKey *ecdsa.PublicKey) error {
+func (t *Transaction) ValidateTransaction(publicKey *ecdsa.PublicKey) error {
 	// Berechne den Hash der Transaktion erneut
 	hash, err := t.CalculateHash()
 	if err != nil {

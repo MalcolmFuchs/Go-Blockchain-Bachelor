@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/utils"
@@ -101,6 +102,7 @@ var viewCmd = &cobra.Command{
 			fmt.Printf("Typ: %s\n", txData.Type)
 			fmt.Printf("Notizen: %s\n", txData.Notes)
 			fmt.Printf("Ergebnisse: %s\n", txData.Results)
+			fmt.Printf("Zeitstempel: %s\n", time.Unix(txData.Timestamp, 0).Format(time.RFC3339))
 			fmt.Println("-----------")
 		}
 	},
