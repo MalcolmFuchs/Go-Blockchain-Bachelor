@@ -88,6 +88,9 @@ func NewTransaction(txType, notes, results string, senderPrivKey *ecdsa.PrivateK
 	tx.Hash = hash
 
 	err = tx.ValidateTransaction(&senderPrivKey.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate transaction: %v", err)
+	}
 
 	return tx, nil
 }
