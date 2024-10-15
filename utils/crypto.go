@@ -3,16 +3,21 @@ package utils
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"math/big"
+	"os"
 
-	"golang.org/x/crypto/curve25519"
+	"golang.org/x/crypto/hkdf"
 )
 
 type EncryptedData struct {
@@ -20,77 +25,139 @@ type EncryptedData struct {
 	Nonce      []byte `json:"nonce"`
 }
 
-func EncryptData(plaintext []byte, key []byte) (EncryptedData, error) {
-	block, err := aes.NewCipher(key)
+func loadPrivateKey(filename string) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
+	// Read the private key PEM file
+	pemData, err := os.ReadFile(filename)
 	if err != nil {
-		return EncryptedData{}, fmt.Errorf("failed to create cipher: %v", err)
+		return nil, nil, fmt.Errorf("failed to read private key file: %v", err)
 	}
 
-	aesGCM, err := cipher.NewGCM(block)
+	// Decode the PEM block
+	block, _ := pem.Decode(pemData)
+	if block == nil || block.Type != "EC PRIVATE KEY" {
+		return nil, nil, fmt.Errorf("failed to decode PEM block containing private key")
+	}
+
+	// Parse the ECDSA private key
+	privKey, err := x509.ParseECPrivateKey(block.Bytes)
 	if err != nil {
-		return EncryptedData{}, fmt.Errorf("failed to create GCM: %v", err)
+		return nil, nil, fmt.Errorf("failed to parse EC private key: %v", err)
 	}
 
-	nonce := make([]byte, aesGCM.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return EncryptedData{}, fmt.Errorf("failed to generate nonce: %v", err)
-	}
+	// The public key is embedded in the private key
+	pubKey := &privKey.PublicKey
 
-	ciphertext := aesGCM.Seal(nil, nonce, plaintext, nil)
-
-	return EncryptedData{
-		Ciphertext: ciphertext,
-		Nonce:      nonce,
-	}, nil
+	return privKey, pubKey, nil
 }
 
-func DecryptData(encrypted EncryptedData, key []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
+func EncryptData(senderPrivKey *ecdh.PrivateKey, recipientPubKey *ecdh.PublicKey, plaintext []byte) ([]byte, []byte, error) {
+	// Perform ECDH key exchange to derive the shared secret
+	sharedSecret, err := senderPrivKey.ECDH(recipientPubKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cipher: %v", err)
+		return nil, nil, fmt.Errorf("ECDH key exchange failed: %v", err)
 	}
 
+	// Derive symmetric key using HKDF
+	salt := []byte("ECDH encryption")
+	info := []byte("encryption key")
+	hkdf := hkdf.New(sha256.New, sharedSecret, salt, info)
+	symmetricKey := make([]byte, 32)
+	if _, err := io.ReadFull(hkdf, symmetricKey); err != nil {
+		return nil, nil, err
+	}
+
+	// Encrypt data using AES-GCM
+	block, err := aes.NewCipher(symmetricKey)
+	if err != nil {
+		return nil, nil, err
+	}
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %v", err)
+		return nil, nil, err
 	}
+	nonce := make([]byte, aesGCM.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, nil, err
+	}
+	ciphertext := aesGCM.Seal(nil, nonce, plaintext, nil)
+	return ciphertext, nonce, nil
+}
 
-	plaintext, err := aesGCM.Open(nil, encrypted.Nonce, encrypted.Ciphertext, nil)
+func DecryptData(recipientPrivKey *ecdh.PrivateKey, senderPubKey *ecdh.PublicKey, ciphertext, nonce []byte) ([]byte, error) {
+	// Perform ECDH key exchange to derive the shared secret
+	sharedSecret, err := recipientPrivKey.ECDH(senderPubKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt data: %v", err)
+		return nil, fmt.Errorf("ECDH key exchange failed: %v", err)
 	}
 
+	// Derive symmetric key using HKDF
+	salt := []byte("ECDH encryption")
+	info := []byte("encryption key")
+	hkdf := hkdf.New(sha256.New, sharedSecret, salt, info)
+	symmetricKey := make([]byte, 32)
+	if _, err := io.ReadFull(hkdf, symmetricKey); err != nil {
+		return nil, err
+	}
+
+	// Decrypt data using AES-GCM
+	block, err := aes.NewCipher(symmetricKey)
+	if err != nil {
+		return nil, err
+	}
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
 	return plaintext, nil
 }
 
-func EncryptAESKeyWithPublicKey(aesKey []byte, patientPublicKey ed25519.PublicKey) ([]byte, error) {
-	// Konvertiere Ed25519-Public-Key zu X25519-Public-Key
-	x25519PubKey := ed25519PublicKeyToX25519(patientPublicKey)
-
-	// Generiere einen ECDH-Privat-Key
-	var ecdhPrivKey [32]byte
-	if _, err := rand.Read(ecdhPrivKey[:]); err != nil {
-		return nil, fmt.Errorf("failed to generate ECDH private key: %v", err)
-	}
-
-	// Berechne das gemeinsame Geheimnis
-	sharedSecret, err := curve25519.X25519(ecdhPrivKey[:], x25519PubKey)
+func SignTransaction(senderPrivKey *ecdsa.PrivateKey, transactionData []byte) ([]byte, []byte, error) {
+	hash := sha256.Sum256(transactionData)
+	r, s, err := ecdsa.Sign(rand.Reader, senderPrivKey, hash[:])
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute shared secret: %v", err)
+		return nil, nil, err
 	}
+	return r.Bytes(), s.Bytes(), nil
+}
 
-	// Hash des gemeinsamen Geheimnisses verwenden als AES-Schlüssel
-	hashedSecret := sha256.Sum256(sharedSecret)
+func VerifySignature(senderPubKey *ecdsa.PublicKey, transactionData, rBytes, sBytes []byte) bool {
+	hash := sha256.Sum256(transactionData)
+	var r, s big.Int
+	r.SetBytes(rBytes)
+	s.SetBytes(sBytes)
+	return ecdsa.Verify(senderPubKey, hash[:], &r, &s)
+}
 
-	// Verschlüssele den AES-Schlüssel mit dem gehashten gemeinsamen Geheimnis
-	encryptedAESKey, err := EncryptData(aesKey, hashedSecret[:])
+func EcdsaPrivToEcdh(ecdsaPrivKey *ecdsa.PrivateKey) (*ecdh.PrivateKey, error) {
+	ecdhCurve := ecdh.P256()
+	ecdhPrivKey, err := ecdhCurve.NewPrivateKey(ecdsaPrivKey.D.Bytes())
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt AES key: %v", err)
+		fmt.Println("Error converting ECDSA private key to ECDH private key:", err)
+		return nil, err
 	}
 
-	// In diesem Beispiel kombinieren wir den ECDH-Privat-Key und den verschlüsselten AES-Schlüssel
-	// In der Praxis solltest du den ECDH-Privat-Key nicht übertragen
-	return append(ecdhPrivKey[:], encryptedAESKey.Ciphertext...), nil
+	return ecdhPrivKey, nil
+}
+
+func EcdsaPubToEcdh(ecdsaPubKey *ecdsa.PublicKey) (*ecdh.PublicKey, error) {
+	ecdhCurve := ecdh.P256()
+	ecdhPubKey, err := ecdhCurve.NewPublicKey(SerializePublicKey(ecdsaPubKey))
+	if err != nil {
+		fmt.Println("Error converting ECDSA public key to ECDH public key:", err)
+		return nil, err
+	}
+
+	return ecdhPubKey, nil
+}
+
+// Serialize the ECDSA public key in uncompressed form (X and Y coordinates concatenated)
+func SerializePublicKey(pubKey *ecdsa.PublicKey) []byte {
+	// Uncompressed public key format: 0x04 || X || Y
+	return append([]byte{0x04}, append(pubKey.X.Bytes(), pubKey.Y.Bytes()...)...)
 }
 
 func ed25519PublicKeyToX25519(edPubKey ed25519.PublicKey) []byte {
@@ -131,13 +198,6 @@ func GenerateECDSAKeys() (*ecdsa.PrivateKey, error) {
 		return nil, fmt.Errorf("failed to generate ECDSA key pair: %v", err)
 	}
 	return privateKey, nil
-}
-
-// Helper function to serialize a public key by concatenating X and Y coordinates
-func serializePublicKey(publicKey *ecdsa.PublicKey) []byte {
-	xBytes := publicKey.X.Bytes()
-	yBytes := publicKey.Y.Bytes()
-	return append(xBytes, yBytes...)
 }
 
 func GenerateAESKey() ([]byte, error) {

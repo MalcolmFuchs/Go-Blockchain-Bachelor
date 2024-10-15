@@ -35,7 +35,6 @@ func (authorityNode *AuthorityNode) AddTransactionHandler(w http.ResponseWriter,
 		Results string `json:"results"`
 		Doctor  string `json:"doctor"`
 		Patient string `json:"patient"`
-		Key     string `json:"key"`
 	}
 
 	// Dekodiere die Transaktionsdaten aus der Anfrage
@@ -52,7 +51,6 @@ func (authorityNode *AuthorityNode) AddTransactionHandler(w http.ResponseWriter,
 		transactionData.Results,
 		transactionData.Doctor,
 		transactionData.Patient,
-		transactionData.Key,
 	)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to create transaction: %v", err), http.StatusInternalServerError)

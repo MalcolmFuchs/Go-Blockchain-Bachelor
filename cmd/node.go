@@ -27,7 +27,7 @@ var nodeCmd = &cobra.Command{
 			node := NewNode(clientPrivateKey, nil, authorityAddress)
 			fmt.Printf("Starting Client Node... Connecting to Authority Node at %s\n", authorityAddress)
 			node.SetupNodeRoutes()
-			go node.AuthorityNodeDiscovery()
+      go node.StartSyncRoutine()
 			node.Listen(":" + port)
 		}
 	},

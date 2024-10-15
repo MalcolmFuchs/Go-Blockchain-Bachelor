@@ -35,12 +35,6 @@ func TestValidateTransaction(t *testing.T) {
 		t.Fatalf("Failed to generate authority node keys: %v", err)
 	}
 
-	// Generiere einen zufälligen AES-Schlüssel und encodiere ihn als Hex
-	validKeyHex, err := generateRandomHexKey(32) // 32 Bytes für AES-256
-	if err != nil {
-		t.Fatalf("Failed to generate random AES key: %v", err)
-	}
-
 	// Erstelle eine Transaktion (ohne Signatur)
 	tx, err := NewTransaction(
 		"Checkup",
@@ -48,7 +42,6 @@ func TestValidateTransaction(t *testing.T) {
 		"All normal",
 		hex.EncodeToString(doctorPub),
 		hex.EncodeToString(patientPub),
-		validKeyHex,
 	)
 	if err != nil {
 		t.Fatalf("Failed to create transaction: %v", err)

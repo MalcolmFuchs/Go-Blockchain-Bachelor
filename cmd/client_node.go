@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
 )
@@ -78,8 +79,20 @@ func (n *Node) ForwardTransaction(transaction *blockchain.Transaction) error {
 	return nil
 }
 
-func (a *Node) Listen(addr string) {
+func (n *Node) Listen(addr string) {
 	http.ListenAndServe(addr, nil)
+}
+
+// check if conditions are met every 5th minute with sleep
+func (n *Node) StartSyncRoutine() {
+	// Create the ticker inside the Go routine
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		// Sync Blockchain
+    n.AuthorityNodeDiscovery()
+	}
 }
 
 // Give the ClientNOde the publicKey of AuthorityNode

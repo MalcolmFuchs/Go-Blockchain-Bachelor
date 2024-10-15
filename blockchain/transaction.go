@@ -2,9 +2,9 @@ package blockchain
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -17,7 +17,6 @@ type Transaction struct {
 	Doctor        []byte              `json:"doctor"`
 	Patient       []byte              `json:"patient"`
 	Signature     []byte              `json:"signature"`
-	Key           []byte              `json:"key"`
 }
 
 type TransactionData struct {
@@ -35,46 +34,36 @@ func PrepareTransactionData(txType, notes, results string) ([]byte, error) {
 	return json.Marshal(data)
 }
 
-func NewTransaction(txType, notes, results, doctorPublicKeyHex, patientPublicKeyHex string, keyHex string) (*Transaction, error) {
-	// Wandelt Doctor- und Patient-Public-Key und den Key von Hex-String zu []byte um
-	doctor, err := hex.DecodeString(doctorPublicKeyHex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode doctor public key: %v", err)
-	}
-
-	patient, err := hex.DecodeString(patientPublicKeyHex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode patient public key: %v", err)
-	}
-
-	key, err := hex.DecodeString(keyHex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode key: %v", err)
-	}
-
+func NewTransaction(txType, notes, results string, senderPrivKey *ecdsa.PrivateKey, recipientPubKey *ecdsa.PublicKey) (*Transaction, error) {
 	// Bereite die Transaktionsdaten vor
 	plaintext, err := PrepareTransactionData(txType, notes, results)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction data: %v", err)
 	}
 
+	senderEcdhPrivKey, err := utils.EcdsaPrivToEcdh(senderPrivKey)
+	if err != nil {
+		return nil, fmt.Errorf("Error during conversion from ecdsa to ecdh private key", err)
+	}
+
+	recipientEcdhPubKey, err := utils.EcdsaPubToEcdh(recipientPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("Error during conversion from ecdsa to ecdh public key", err)
+	}
+
 	// Verschlüssele die Daten mit AES-GCM
-	encryptedData, err := utils.EncryptData(plaintext, key)
+	ciphertext, nonce, err := utils.EncryptData(senderEcdhPrivKey, recipientEcdhPubKey, plaintext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt transaction data: %v", err)
 	}
 
-	// Verschlüssele den AES-Schlüssel mit dem öffentlichen Schlüssel des Patienten
-	encryptedAESKey, err := utils.EncryptAESKeyWithPublicKey(key, patient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt AES key: %v", err)
-	}
-
 	tx := &Transaction{
-		Doctor:        doctor,
-		Patient:       patient,
-		EncryptedData: encryptedData,
-		Key:           encryptedAESKey, // Der verschlüsselte AES-Schlüssel wird im Key-Feld gespeichert
+		Doctor:  senderPrivKey.X.Bytes(),
+		Patient: recipientPubKey.X.Bytes(),
+		EncryptedData: utils.EncryptedData{
+			Ciphertext: ciphertext,
+			Nonce:      nonce,
+		},
 	}
 
 	// Berechne den Hash der Transaktion
