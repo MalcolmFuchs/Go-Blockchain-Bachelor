@@ -1,32 +1,31 @@
 package cmd
 
 import (
+	"crypto/ecdsa"
 	"crypto/ed25519"
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
+	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/utils"
 )
 
 type Node struct {
 	Blockchain           *blockchain.Blockchain
 	Doctors              map[string]DoctorData
 	Patients             map[string]PatientData
-	TrustedPublicKey     ed25519.PublicKey
 	AuthorityNodeAddress string
-	PrivateKey           ed25519.PrivateKey
+	TrustedPublicKey     *ecdsa.PublicKey
 }
 
-func NewNode(privateKey ed25519.PrivateKey, trustedPublicKey ed25519.PublicKey, authorityNodeAddress string) *Node {
+func NewNode(privateKey *ecdsa.PrivateKey, authorityNodeAddress string) *Node {
 	return &Node{
 		Blockchain:           &blockchain.Blockchain{Blocks: []*blockchain.Block{}, BlockMap: make(map[string]*blockchain.Block)},
 		Doctors:              make(map[string]DoctorData),
 		Patients:             make(map[string]PatientData),
-		TrustedPublicKey:     trustedPublicKey,
-		PrivateKey:           privateKey,
 		AuthorityNodeAddress: authorityNodeAddress,
 	}
 }
@@ -39,34 +38,6 @@ type DoctorData struct {
 
 type PatientData struct {
 	Transactions map[string]*blockchain.Transaction `json:"transactions"`
-	PublicKey    ed25519.PublicKey                  `json:"public_key"`
-}
-
-func (n *Node) AddDoctor(doctor DoctorData) {
-	doctorKeyHash := hex.EncodeToString(doctor.PublicKey)
-	n.Doctors[doctorKeyHash] = doctor
-}
-
-func (n *Node) GetDoctor(publicKey ed25519.PublicKey) (*DoctorData, error) {
-	doctorKeyHash := hex.EncodeToString(publicKey)
-
-	if doctor, exists := n.Doctors[doctorKeyHash]; exists {
-		return &doctor, nil
-	}
-	return nil, fmt.Errorf("doctor not found")
-}
-
-func (n *Node) AddPatient(patient PatientData) {
-	patientKeyHash := hex.EncodeToString(patient.PublicKey)
-	n.Patients[patientKeyHash] = patient
-}
-
-func (n *Node) GetPatient(publicKey ed25519.PublicKey) (*PatientData, error) {
-	patientKeyHash := hex.EncodeToString(publicKey)
-	if patient, exists := n.Patients[patientKeyHash]; exists {
-		return &patient, nil
-	}
-	return nil, fmt.Errorf("patient not found")
 }
 
 // Transaction to Authority-Client
@@ -91,7 +62,7 @@ func (n *Node) StartSyncRoutine() {
 
 	for range ticker.C {
 		// Sync Blockchain
-    n.AuthorityNodeDiscovery()
+		n.AuthorityNodeDiscovery()
 	}
 }
 
@@ -116,24 +87,25 @@ func (n *Node) AuthorityNodeDiscovery() {
 		return
 	}
 
-	publicKeyHex, ok := result["publicKey"]
+	publicKeyBytes, ok := result["publicKey"]
 	if !ok {
 		fmt.Println("Public Key nicht in der Antwort gefunden")
 		return
 	}
 
-	publicKeyBytes, err := hex.DecodeString(publicKeyHex)
+	publicKeyBytesDecoded, err := base64.StdEncoding.DecodeString(publicKeyBytes)
 	if err != nil {
-		fmt.Printf("Fehler beim Dekodieren des Public Keys: %v\n", err)
+		fmt.Printf("error decoding base64 public key: %v", err)
 		return
 	}
 
-	if len(publicKeyBytes) != ed25519.PublicKeySize {
-		fmt.Println("Ungültige Länge des Public Keys")
+	publicKey, err := utils.DeserializePublicKey(publicKeyBytesDecoded)
+	if err != nil {
+		fmt.Printf("couldn't deserialize doctor public key: %v", err)
 		return
 	}
 
-	n.TrustedPublicKey = ed25519.PublicKey(publicKeyBytes)
+	n.TrustedPublicKey = publicKey
 
 	fmt.Println("Authority Node Public Key erfolgreich erhalten und gespeichert")
 

@@ -1,7 +1,7 @@
 package blockchain
 
 import (
-	"crypto/ed25519"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,7 +16,7 @@ type Blockchain struct {
 }
 
 // NewBlockchain creates a new blockchain with a genesis block
-func NewBlockchain(privateKey ed25519.PrivateKey) *Blockchain {
+func NewBlockchain(privateKey *ecdsa.PrivateKey) *Blockchain {
 	// Erstelle den Genesis-Block und initialisiere die Blockchain
 	genesisBlock, err := CreateGenesisBlock(privateKey)
 	if err != nil {
@@ -33,7 +33,7 @@ func NewBlockchain(privateKey ed25519.PrivateKey) *Blockchain {
 }
 
 // CreateGenesisBlock creates the initial block of the blockchain
-func CreateGenesisBlock(authorityPrivateKey ed25519.PrivateKey) (*Block, error) {
+func CreateGenesisBlock(authorityPrivateKey *ecdsa.PrivateKey) (*Block, error) {
 	genesisBlock := &Block{
 		ID:           0,
 		PreviousHash: nil,
@@ -50,7 +50,7 @@ func CreateGenesisBlock(authorityPrivateKey ed25519.PrivateKey) (*Block, error) 
 	genesisBlock.Hash = hash[:]
 
 	// 4. Signiere den Genesis-Block mit dem Private Key des Authority Nodes
-	genesisBlock.Signature = ed25519.Sign(authorityPrivateKey, genesisBlock.Hash)
+	genesisBlock.SignBlock(authorityPrivateKey)
 
 	fmt.Println("Genesis Block created with ID 0 and hash:", genesisBlock.Hash)
 	return genesisBlock, nil

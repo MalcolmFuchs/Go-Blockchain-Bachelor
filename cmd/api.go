@@ -1,13 +1,56 @@
 package cmd
 
 import (
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
+	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/utils"
 )
+
+func (a *AuthorityNode) GetPatientTransactionsHandler(w http.ResponseWriter, r *http.Request) {
+	patientID := r.URL.Query().Get("patientID")
+	if patientID == "" {
+		http.Error(w, "patientID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Versuch, die Standard Base64-Dekodierung zu verwenden
+	decodedPatientID, err := base64.StdEncoding.DecodeString(patientID)
+	if err != nil {
+		// Wenn die Standard-Dekodierung fehlschlägt, versuche die URL-sichere Dekodierung
+		fmt.Println("Standard Base64-Dekodierung fehlgeschlagen:", err)
+		decodedPatientID, err = base64.URLEncoding.DecodeString(patientID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to decode patientID: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	patientHash := base64.StdEncoding.EncodeToString(decodedPatientID)
+	patientData, exists := a.Patients[patientHash]
+	if !exists {
+		http.Error(w, "patient not found", http.StatusNotFound)
+		return
+	}
+
+	var transactions []*blockchain.Transaction
+	for _, tx := range patientData.Transactions {
+		transactions = append(transactions, tx)
+	}
+
+	responseData, err := json.Marshal(transactions)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to serialize transactions: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseData)
+}
 
 func (node *Node) GetBlockchainHandler(w http.ResponseWriter, r *http.Request) {
 	// Stelle sicher, dass die Blockchain vorhanden ist
@@ -29,55 +72,27 @@ func (node *Node) GetBlockchainHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (authorityNode *AuthorityNode) AddTransactionHandler(w http.ResponseWriter, r *http.Request) {
-	var transactionData struct {
-		Type    string `json:"type"`
-		Notes   string `json:"notes"`
-		Results string `json:"results"`
-		Doctor  string `json:"doctor"`
-		Patient string `json:"patient"`
-	}
+	var transaction blockchain.Transaction
 
 	// Dekodiere die Transaktionsdaten aus der Anfrage
-	err := json.NewDecoder(r.Body).Decode(&transactionData)
+	err := json.NewDecoder(r.Body).Decode(&transaction)
 	if err != nil {
 		http.Error(w, "failed to decode transaction data", http.StatusBadRequest)
 		return
 	}
 
-	// Erstelle eine neue Transaktion aus den empfangenen Daten (ohne Signatur)
-	transaction, err := blockchain.NewTransaction(
-		transactionData.Type,
-		transactionData.Notes,
-		transactionData.Results,
-		transactionData.Doctor,
-		transactionData.Patient,
-	)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to create transaction: %v", err), http.StatusInternalServerError)
-		return
-	}
+  if err != nil {
+    http.Error(w, fmt.Sprintf("failed to create transaction: %v", err), http.StatusInternalServerError)
+    return
+  }
 
-	// Signiere die Transaktion mit dem Private Key des Authority Nodes
-	_, err = blockchain.SignTransaction(transaction, authorityNode.PrivateKey)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to sign transaction: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Validierung der Transaktion mit dem Public Key des Authority Nodes
-	err = blockchain.ValidateTransaction(transaction, authorityNode.PublicKey)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("invalid transaction: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	// Füge die validierte und signierte Transaktion zum Pool hinzu
-	if err := authorityNode.AddTransaction(transaction); err != nil {
-		http.Error(w, fmt.Sprintf("failed to add transaction to pool: %v", err), http.StatusInternalServerError)
-		return
-	}
-
+  // Füge die validierte und signierte Transaktion zum Pool hinzu
+  if err := authorityNode.AddTransaction(&transaction); err != nil {
+    http.Error(w, fmt.Sprintf("failed to add transaction to pool: %v", err), http.StatusInternalServerError)
+    return
+  }
 	w.WriteHeader(http.StatusOK)
+
 	w.Write([]byte("Transaction added to pool successfully"))
 }
 
@@ -139,9 +154,9 @@ func (authorityNode *AuthorityNode) SyncHandler(w http.ResponseWriter, r *http.R
 }
 
 func (a *AuthorityNode) GetPublicKeyHandler(w http.ResponseWriter, r *http.Request) {
-	publicKeyHex := hex.EncodeToString(a.PublicKey)
+	publicKey := utils.SerializePublicKey(&a.PrivateKey.PublicKey)
 	response := map[string]string{
-		"publicKey": publicKeyHex,
+		"publicKey": base64.StdEncoding.EncodeToString(publicKey),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
@@ -169,8 +184,9 @@ func (a *AuthorityNode) SetupAuthorityNodeRoutes() {
 	a.SetupNodeRoutes()
 	http.HandleFunc("/addTransaction", a.AddTransactionHandler)
 	http.HandleFunc("/createBlock", a.CreateBlockHandler)
-	http.HandleFunc("/sync", a.SyncHandler)
+	http.HandleFunc("/getPatientTransactions", a.GetPatientTransactionsHandler)
 	http.HandleFunc("/getTransactionPool", a.GetTransactionPoolHandler)
+	http.HandleFunc("/sync", a.SyncHandler)
 	http.HandleFunc("/getPublicKey", a.GetPublicKeyHandler)
 }
 

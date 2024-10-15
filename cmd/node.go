@@ -1,14 +1,17 @@
 package cmd
 
 import (
-	"crypto/ed25519"
 	"fmt"
+	"os"
 
+	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/utils"
 	"github.com/spf13/cobra"
 )
 
-var authorityAddress string
-var port string
+var (
+	authorityAddress string
+	port             string
+)
 
 // TODO: Port hinzufügen per Parameter -p --port
 var nodeCmd = &cobra.Command{
@@ -17,17 +20,20 @@ var nodeCmd = &cobra.Command{
 	Long:  `Start a node either as an authority node or as a client node.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if authorityAddress == "" {
-			authorityPublicKey, authorityPrivateKey, _ := ed25519.GenerateKey(nil)
-			authorityNode := NewAuthorityNode(authorityPrivateKey, authorityPublicKey)
+			authorityNodePrivateKey, authorityNodePublicKey, err := utils.LoadPrivateKey(privKeyFile)
+			if err != nil {
+				fmt.Println("Fehler beim Laden des privaten Schlüssels:", err)
+				os.Exit(1)
+			}
+			authorityNode := NewAuthorityNode(authorityNodePrivateKey, authorityNodePublicKey)
 			fmt.Println("Starting Authority Node...")
 			authorityNode.SetupAuthorityNodeRoutes()
 			authorityNode.Listen(":" + port)
 		} else {
-			_, clientPrivateKey, _ := ed25519.GenerateKey(nil)
-			node := NewNode(clientPrivateKey, nil, authorityAddress)
+			node := NewNode(nil, authorityAddress)
 			fmt.Printf("Starting Client Node... Connecting to Authority Node at %s\n", authorityAddress)
 			node.SetupNodeRoutes()
-      go node.StartSyncRoutine()
+			go node.StartSyncRoutine()
 			node.Listen(":" + port)
 		}
 	},

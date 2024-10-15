@@ -25,7 +25,7 @@ type EncryptedData struct {
 	Nonce      []byte `json:"nonce"`
 }
 
-func loadPrivateKey(filename string) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
+func LoadPrivateKey(filename string) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error) {
 	// Read the private key PEM file
 	pemData, err := os.ReadFile(filename)
 	if err != nil {
@@ -48,6 +48,35 @@ func loadPrivateKey(filename string) (*ecdsa.PrivateKey, *ecdsa.PublicKey, error
 	pubKey := &privKey.PublicKey
 
 	return privKey, pubKey, nil
+}
+
+// LoadPublicKey reads an ECDSA public key from a PEM file
+func LoadPublicKey(filename string) (*ecdsa.PublicKey, error) {
+	// Read the public key PEM file
+	pemData, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read public key file: %v", err)
+	}
+
+	// Decode the PEM block
+	block, _ := pem.Decode(pemData)
+	if block == nil || block.Type != "PUBLIC KEY" {
+		return nil, fmt.Errorf("failed to decode PEM block containing public key")
+	}
+
+	// Parse the public key
+	pubKeyInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public key: %v", err)
+	}
+
+	// Assert the type of public key to be ECDSA
+	pubKey, ok := pubKeyInterface.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not an ECDSA public key")
+	}
+
+	return pubKey, nil
 }
 
 func EncryptData(senderPrivKey *ecdh.PrivateKey, recipientPubKey *ecdh.PublicKey, plaintext []byte) ([]byte, []byte, error) {
@@ -160,9 +189,37 @@ func SerializePublicKey(pubKey *ecdsa.PublicKey) []byte {
 	return append([]byte{0x04}, append(pubKey.X.Bytes(), pubKey.Y.Bytes()...)...)
 }
 
-func ed25519PublicKeyToX25519(edPubKey ed25519.PublicKey) []byte {
-	// Dies ist eine vereinfachte Konvertierung. In der Praxis solltest du einen korrekten Mechanismus verwenden.
-	return edPubKey[:32]
+// Deserialize a public key from uncompressed bytes and return an *ecdsa.PublicKey
+func DeserializePublicKey(pubKeyBytes []byte) (*ecdsa.PublicKey, error) {
+	// Step 1: Ensure the key is uncompressed and has a 0x04 prefix
+	if len(pubKeyBytes) == 0 || pubKeyBytes[0] != 0x04 {
+		return nil, fmt.Errorf("invalid uncompressed public key format")
+	}
+
+	// Step 2: Extract the X and Y coordinates from the byte slice
+	curve := elliptic.P256()
+	coordinateLength := (curve.Params().BitSize + 7) / 8 // Number of bytes per coordinate
+
+	expectedLength := 1 + 2*coordinateLength // 1 byte for prefix, X and Y coordinates
+	if len(pubKeyBytes) != expectedLength {
+		return nil, fmt.Errorf("invalid public key length")
+	}
+
+	xBytes := pubKeyBytes[1 : 1+coordinateLength]
+	yBytes := pubKeyBytes[1+coordinateLength:]
+
+	// Step 3: Convert the coordinate bytes to big.Int
+	x := new(big.Int).SetBytes(xBytes)
+	y := new(big.Int).SetBytes(yBytes)
+
+	// Step 4: Create and return the ECDSA public key
+	pubKey := &ecdsa.PublicKey{
+		Curve: curve,
+		X:     x,
+		Y:     y,
+	}
+
+	return pubKey, nil
 }
 
 func GenerateRandomHexKey(length int) (string, error) {

@@ -2,19 +2,20 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/ed25519"
+	"crypto/ecdsa"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/blockchain"
+	"github.com/MalcolmFuchs/Go-Blockchain-Bachelor/utils"
 )
 
 type AuthorityNode struct {
-	PrivateKey           ed25519.PrivateKey
-	PublicKey            ed25519.PublicKey
+	PrivateKey           *ecdsa.PrivateKey
 	TransactionPool      *blockchain.TransactionPool // Verwende den TransactionPool
 	*Node                                            // Vererbung von Node
 	LastBlockTimestamp   int64                       // Zeitstempel des letzten Blocks
@@ -23,12 +24,11 @@ type AuthorityNode struct {
 }
 
 // Erstellt einen neuen AuthorityNode
-func NewAuthorityNode(privateKey ed25519.PrivateKey, publicKey ed25519.PublicKey) *AuthorityNode {
-	node := NewNode(privateKey, publicKey, "localhost:8080")
+func NewAuthorityNode(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey) *AuthorityNode {
+	node := NewNode(privateKey, "localhost:8080")
 
 	authorityNode := &AuthorityNode{
 		PrivateKey:           privateKey,
-		PublicKey:            publicKey,
 		TransactionPool:      blockchain.NewTransactionPool(),
 		Node:                 node,
 		LastBlockTimestamp:   time.Now().Unix(),
@@ -79,7 +79,12 @@ func (a *AuthorityNode) CreateBlock() (*blockchain.Block, error) {
 
 	// Validierung jeder Transaktion vor dem Hinzufügen zum Block
 	for _, tx := range pendingTransactions {
-		err := blockchain.ValidateTransaction(tx, a.PublicKey)
+		doctorPublicKey, err := utils.DeserializePublicKey(tx.Doctor)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't deserialize doctor public key: %v", err)
+		}
+
+		err = tx.ValidateTransaction(doctorPublicKey)
 		if err != nil {
 			return nil, fmt.Errorf("invalid transaction in pool: %v", err)
 		}
@@ -100,7 +105,7 @@ func (a *AuthorityNode) CreateBlock() (*blockchain.Block, error) {
 	}
 	newBlock.Hash = hash
 
-	newBlock.Signature = ed25519.Sign(a.PrivateKey, newBlock.Hash)
+	newBlock.SignBlock(a.PrivateKey)
 
 	// Füge den Block zur Blockchain hinzu
 	if err := a.AddBlockToBlockchain(newBlock); err != nil {
@@ -113,11 +118,23 @@ func (a *AuthorityNode) CreateBlock() (*blockchain.Block, error) {
 		a.TransactionPool.RemoveTransactionFromPool(txHash)
 	}
 
+	for _, tx := range newBlock.Transactions {
+		patientHash := base64.StdEncoding.EncodeToString(tx.Patient)
+
+		if _, exists := a.Patients[patientHash]; !exists {
+			a.Patients[patientHash] = PatientData{
+				Transactions: make(map[string]*blockchain.Transaction),
+			}
+		}
+
+		a.Patients[patientHash].Transactions[base64.StdEncoding.EncodeToString(tx.Hash)] = tx
+		fmt.Println(tx.Patient)
+	}
+
 	return newBlock, nil
 }
 
 func (a *AuthorityNode) AddBlockToBlockchain(block *blockchain.Block) error {
-
 	if err := a.ValidateBlock(block); err != nil {
 		return fmt.Errorf("failed to validate block: %v", err)
 	}
@@ -151,8 +168,8 @@ func (a *AuthorityNode) ValidateBlock(block *blockchain.Block) error {
 	}
 
 	// Überprüfe, ob die Signatur gültig ist
-	if !ed25519.Verify(a.PublicKey, block.Hash, block.Signature) {
-		return fmt.Errorf("invalid signature for block ID %d", block.ID)
+	if !utils.VerifySignature(&a.PrivateKey.PublicKey, block.Hash, block.Signature.R, block.Signature.S) {
+		return fmt.Errorf("invalid signature for transaction hash %x", block.Hash)
 	}
 
 	return nil

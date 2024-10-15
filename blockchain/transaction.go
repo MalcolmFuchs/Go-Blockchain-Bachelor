@@ -3,7 +3,6 @@ package blockchain
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -16,7 +15,12 @@ type Transaction struct {
 	EncryptedData utils.EncryptedData `json:"encryptedData"`
 	Doctor        []byte              `json:"doctor"`
 	Patient       []byte              `json:"patient"`
-	Signature     []byte              `json:"signature"`
+	Signature     *Signature          `json:"signature"`
+}
+
+type Signature struct {
+	R []byte `json:"r"`
+	S []byte `json:"s"`
 }
 
 type TransactionData struct {
@@ -58,8 +62,8 @@ func NewTransaction(txType, notes, results string, senderPrivKey *ecdsa.PrivateK
 	}
 
 	tx := &Transaction{
-		Doctor:  senderPrivKey.X.Bytes(),
-		Patient: recipientPubKey.X.Bytes(),
+		Doctor:  utils.SerializePublicKey(&senderPrivKey.PublicKey),
+		Patient: utils.SerializePublicKey(recipientPubKey),
 		EncryptedData: utils.EncryptedData{
 			Ciphertext: ciphertext,
 			Nonce:      nonce,
@@ -72,6 +76,15 @@ func NewTransaction(txType, notes, results string, senderPrivKey *ecdsa.PrivateK
 		return nil, fmt.Errorf("failed to calculate transaction hash: %v", err)
 	}
 	tx.Hash = hash
+
+	// Berechne die Signatur der Transaktion
+  err = tx.SignTransaction(senderPrivKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate transaction signature: %v", err)
+	}
+	tx.Hash = hash
+
+  err = tx.ValidateTransaction(&senderPrivKey.PublicKey)
 
 	return tx, nil
 }
@@ -91,28 +104,38 @@ func (t *Transaction) CalculateHash() ([]byte, error) {
 	return hash[:], nil // Rückgabe des Hashes als Slice []byte
 }
 
-func SignTransaction(tx *Transaction, privateKey ed25519.PrivateKey) ([]byte, error) {
+func (t *Transaction) SignTransaction(privateKey *ecdsa.PrivateKey) error {
 	// Signiere den bereits berechneten Hash der Transaktion
-	signature := ed25519.Sign(privateKey, tx.Hash)
-	tx.Signature = signature
-	return signature, nil
+	r, s, err := utils.SignTransaction(privateKey, t.Hash)
+	if err != nil {
+		return fmt.Errorf("failed to generate transaction signature: %v", err)
+	}
+
+	t.Signature = &Signature{
+		R: r,
+		S: s,
+	}
+
+  fmt.Printf("%v", t.Signature)
+
+	return nil
 }
 
-func ValidateTransaction(tx *Transaction, publicKey ed25519.PublicKey) error {
+func(t *Transaction) ValidateTransaction(publicKey *ecdsa.PublicKey) error {
 	// Berechne den Hash der Transaktion erneut
-	hash, err := tx.CalculateHash()
+	hash, err := t.CalculateHash()
 	if err != nil {
 		return fmt.Errorf("failed to calculate transaction hash: %v", err)
 	}
 
 	// Überprüfe, ob der berechnete Hash mit dem gespeicherten Hash der Transaktion übereinstimmt
-	if !bytes.Equal(hash, tx.Hash) {
-		return fmt.Errorf("hash mismatch: calculated %x, stored %x", hash, tx.Hash)
+	if !bytes.Equal(hash, t.Hash) {
+		return fmt.Errorf("hash mismatch: calculated %x, stored %x", hash, t.Hash)
 	}
 
 	// Verifiziere die Signatur mit dem Public Key
-	if !ed25519.Verify(publicKey, tx.Hash, tx.Signature) {
-		return fmt.Errorf("invalid signature for transaction hash %x", tx.Hash)
+	if !utils.VerifySignature(publicKey, hash, t.Signature.R, t.Signature.S) {
+		return fmt.Errorf("invalid signature for transaction hash %x", t.Hash)
 	}
 
 	return nil

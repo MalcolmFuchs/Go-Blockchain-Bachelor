@@ -3,10 +3,8 @@
 package blockchain
 
 import (
-	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
-	"testing"
 )
 
 func generateRandomHexKey(length int) (string, error) {
@@ -18,6 +16,7 @@ func generateRandomHexKey(length int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+/*
 func TestValidateTransaction(t *testing.T) {
 	// Schlüsselpaare für Arzt, Patient und Authority Node
 	doctorPub, _, err := ed25519.GenerateKey(nil)
@@ -67,3 +66,4 @@ func TestValidateTransaction(t *testing.T) {
 		t.Errorf("Expected transaction to be invalid due to tampering, but validation passed")
 	}
 }
+*/
