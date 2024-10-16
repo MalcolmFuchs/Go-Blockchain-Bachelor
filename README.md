@@ -70,7 +70,7 @@ Dieses Dokument beschreibt die Implementierung und Verwendung der `Go-Blockchain
 
 5. **Patienten Transaktionen anzeigen:**
    ```bash
-      ./Go-Blockchain-Bachelor view --node_address localhost:8080 --key ./keys/patient_private_key.pem
+   ./Go-Blockchain-Bachelor view --node_address localhost:8080 --key ./keys/patient_private_key.pem
     ```
 
 
