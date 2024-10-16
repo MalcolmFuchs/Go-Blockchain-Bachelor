@@ -46,7 +46,5 @@ func (b *Block) SignBlock(privateKey *ecdsa.PrivateKey) error {
 		S: s,
 	}
 
-	fmt.Printf("%v", b.Signature)
-
 	return nil
 }

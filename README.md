@@ -1,44 +1,32 @@
-# Go-Blockchain-Bachelor
+# 🚀 **Go-Blockchain-Bachelor**
 
-## Übersicht
+## 📋 **Übersicht**
 
-Dieses Dokument beschreibt die Implementierung und Verwendung der `Go-Blockchain-Bachelor`-Anwendung. Es enthält Anweisungen zur Installation, zum Starten der Nodes und zur Nutzung der verschiedenen HTTP-Endpunkte, die zur Interaktion mit der Blockchain verfügbar sind.
+Dieses Dokument beschreibt die Implementierung und Verwendung der `Go-Blockchain-Bachelor`-Anwendung. Es enthält Anweisungen zur **Installation**, zum **Starten der Nodes** und zur **Nutzung der verschiedenen Endpunkte**, die zur Interaktion mit der Blockchain verfügbar sind.
 
-## Installation
+---
 
-1. **Voraussetzungen**
-   - Golang 1.18 oder höher
-   - `curl` für API-Tests
+## 🛠️ **Installation**
 
-2. **Klonen des Repositories**
+1. **Voraussetzungen**:
+   - ✅ Golang 1.18 oder höher
+   - ✅ `curl` für API-Tests
+
+2. **Klonen des Repositories**:
    ```bash
-   git clone https://github.com/MalcolmFuchs/Go-Blockchain-Bachelor.git
-   cd Go-Blockchain-Bachelor
+      git clone https://github.com/MalcolmFuchs/Go-Blockchain-Bachelor.git
+      cd Go-Blockchain-Bachelor
    ```
 
 3. **Abhängigkeiten installieren**
    ```bash
-   go mod tidy
+      go mod tidy
    ```
 
 4. **Build**
    ```bash
-   go build -o Go-Blockchain-Bachelor
+      go build -o Go-Blockchain-Bachelor
    ```
-
-## Anwendung starten
-
-### Authority Node starten
-
-```bash
-./Go-Blockchain-Bachelor node --port 8080
-```
-
-### Client Node starten und mit Authority Node verbinden
-
-```bash
-./Go-Blockchain-Bachelor node --authority localhost:8080 --port 8081
-```
 
 ## Starten der Nodes und Testen der Endpunkte
 
@@ -82,6 +70,7 @@ Dieses Dokument beschreibt die Implementierung und Verwendung der `Go-Blockchain
 
 5. **Patienten Transaktionen anzeigen:**
    ```bash
-   ./Go-Blockchain-Bachelor view --node_address localhost:8080 --key ./keys/patient_private_key.pem
+      ./Go-Blockchain-Bachelor view --node_address localhost:8080 --key ./keys/patient_private_key.pem
     ```
+
 

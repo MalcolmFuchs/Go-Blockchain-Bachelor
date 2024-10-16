@@ -5,12 +5,10 @@ import (
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -220,47 +218,4 @@ func DeserializePublicKey(pubKeyBytes []byte) (*ecdsa.PublicKey, error) {
 	}
 
 	return pubKey, nil
-}
-
-func GenerateRandomHexKey(length int) (string, error) {
-	bytes := make([]byte, length)
-	_, err := rand.Read(bytes)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate random bytes: %v", err)
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
-func GenerateKeys() (ed25519.PublicKey, ed25519.PrivateKey, error) {
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate keys: %v", err)
-	}
-	return publicKey, privateKey, nil
-}
-
-func GenerateRandomBytes(length int) ([]byte, error) {
-	randomBytes := make([]byte, length)
-
-	if _, err := io.ReadFull(rand.Reader, randomBytes); err != nil {
-		return nil, fmt.Errorf("failed to generate random bytes: %v", err)
-	}
-
-	return randomBytes, nil
-}
-
-func GenerateECDSAKeys() (*ecdsa.PrivateKey, error) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate ECDSA key pair: %v", err)
-	}
-	return privateKey, nil
-}
-
-func GenerateAESKey() ([]byte, error) {
-	key := make([]byte, 32) // 256 Bits
-	if _, err := io.ReadFull(rand.Reader, key); err != nil {
-		return nil, err
-	}
-	return key, nil
 }
